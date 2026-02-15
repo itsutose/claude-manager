@@ -114,6 +114,7 @@ async def generate_title(first_prompt: str) -> str | None:
         "--model", "haiku",
         "-p", prompt,
         "--output-format", "text",
+        "--no-session-persistence",
     ]
 
     env = _clean_env()
