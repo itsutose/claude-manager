@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from claude_manager.services.message_parser import parse_session_messages
 from claude_manager.services.session_manager import SessionManager
+from claude_manager.services.session_interactor import send_message
 from claude_manager.services.terminal import build_resume_command, resume_in_tmux
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -154,6 +155,25 @@ async def auto_rename_session(session_id: str, request: Request):
         session.custom_title = title
 
     return {"session_id": session_id, "title": title}
+
+
+class SendMessageBody(BaseModel):
+    message: str
+
+
+@router.post("/{session_id}/send")
+async def send_to_session(session_id: str, body: SendMessageBody, request: Request):
+    """セッションにメッセージを送信（claude -p --resume）."""
+    session, clone, _ = _find_session(request.app.state.groups, session_id)
+    if not session:
+        return {"error": "Session not found"}
+
+    result = await send_message(
+        session_id=session_id,
+        message=body.message,
+        project_path=clone.project_path,
+    )
+    return result
 
 
 @router.post("/{session_id}/hide")
