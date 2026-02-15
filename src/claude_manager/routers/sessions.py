@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from claude_manager.services.message_parser import parse_session_messages
+from claude_manager.services.session_manager import SessionManager
 from claude_manager.services.terminal import build_resume_command, resume_in_tmux
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -119,3 +120,55 @@ async def rename_session(session_id: str, body: RenameBody, request: Request):
 
     session.custom_title = body.title
     return {"session_id": session_id, "title": body.title}
+
+
+@router.post("/{session_id}/rename")
+async def rename_session_persistent(session_id: str, body: RenameBody, request: Request):
+    """セッション名の変更（sessions-index.json の customTitle を書き換える）."""
+    config = request.app.state.config
+    mgr = SessionManager(config)
+    ok = mgr.rename_session(session_id, body.title)
+    if not ok:
+        return {"error": "Session not found or write failed"}
+
+    # メモリ上の状態も更新
+    session, _, _ = _find_session(request.app.state.groups, session_id)
+    if session:
+        session.custom_title = body.title
+
+    return {"session_id": session_id, "title": body.title}
+
+
+@router.post("/{session_id}/auto-rename")
+async def auto_rename_session(session_id: str, request: Request):
+    """firstPrompt からルールベースでタイトルを自動生成し、customTitle に設定する."""
+    config = request.app.state.config
+    mgr = SessionManager(config)
+    title = mgr.auto_rename_session(session_id)
+    if title is None:
+        return {"error": "Session not found or auto-rename failed"}
+
+    # メモリ上の状態も更新
+    session, _, _ = _find_session(request.app.state.groups, session_id)
+    if session:
+        session.custom_title = title
+
+    return {"session_id": session_id, "title": title}
+
+
+@router.post("/{session_id}/hide")
+async def hide_session(session_id: str, request: Request):
+    """セッションを非表示にする."""
+    user_data = request.app.state.user_data
+    user_data.hide_session(session_id)
+    return {"session_id": session_id, "hidden": True}
+
+
+@router.post("/{session_id}/unhide")
+async def unhide_session(session_id: str, request: Request):
+    """非表示セッションを復元する."""
+    user_data = request.app.state.user_data
+    user_data.unhide_session(session_id)
+    return {"session_id": session_id, "hidden": False}
+
+

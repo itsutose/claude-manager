@@ -34,6 +34,10 @@ class Config:
     def group_config_file(self) -> Path:
         return self.manager_dir / "group_config.json"
 
+    @property
+    def hidden_file(self) -> Path:
+        return self.manager_dir / "hidden.json"
+
     def ensure_manager_dir(self) -> None:
         self.manager_dir.mkdir(parents=True, exist_ok=True)
         for f in [self.pins_file, self.read_state_file, self.group_config_file]:

@@ -53,3 +53,41 @@ class UserDataStore:
 
     def get_read_states(self) -> dict[str, str]:
         return self._read_json(self.config.read_state_file)
+
+    # --- 非表示管理 ---
+
+    def get_hidden_sessions(self) -> set[str]:
+        """非表示セッションIDのセットを返す."""
+        data = self._read_json(self.config.hidden_file)
+        return set(data.get("hidden", []))
+
+    def hide_session(self, session_id: str) -> bool:
+        """セッションを非表示にする.
+
+        Returns:
+            True（常に成功）
+        """
+        data = self._read_json(self.config.hidden_file)
+        hidden = set(data.get("hidden", []))
+        hidden.add(session_id)
+        data["hidden"] = list(hidden)
+        self._write_json(self.config.hidden_file, data)
+        return True
+
+    def unhide_session(self, session_id: str) -> bool:
+        """セッションの非表示を解除する.
+
+        Returns:
+            True（常に成功）
+        """
+        data = self._read_json(self.config.hidden_file)
+        hidden = set(data.get("hidden", []))
+        hidden.discard(session_id)
+        data["hidden"] = list(hidden)
+        self._write_json(self.config.hidden_file, data)
+        return True
+
+    def list_hidden_sessions(self) -> list[str]:
+        """非表示セッションIDのリストを返す."""
+        data = self._read_json(self.config.hidden_file)
+        return data.get("hidden", [])

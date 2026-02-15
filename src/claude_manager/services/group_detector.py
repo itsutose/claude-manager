@@ -133,12 +133,29 @@ def _generate_initials(name: str) -> str:
     return clean.upper()
 
 
+def _load_hidden_sessions(config: Config) -> set[str]:
+    """hidden.json から非表示セッションIDを読み込む."""
+    hidden_file = config.hidden_file
+    if not hidden_file.exists():
+        return set()
+    try:
+        data = json.loads(hidden_file.read_text())
+        return set(data.get("hidden", []))
+    except (json.JSONDecodeError, OSError):
+        return set()
+
+
 def detect_groups(
     sessions: list[SessionEntry],
     config: Config,
 ) -> list[ProjectGroup]:
     """セッション一覧からプロジェクトグループを自動検出する."""
     _init_excluded_parents()
+
+    # 非表示セッションをフィルタリング
+    hidden_ids = _load_hidden_sessions(config)
+    if hidden_ids:
+        sessions = [s for s in sessions if s.session_id not in hidden_ids]
 
     # Step 1: clone_id → project_path のマッピングを構築
     clone_paths: dict[str, str] = {}

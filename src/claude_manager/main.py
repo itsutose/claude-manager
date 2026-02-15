@@ -90,6 +90,11 @@ def create_app(config: Config | None = None) -> FastAPI:
         app.state.groups = build_groups(config)
         return {"status": "ok", "groups": len(app.state.groups)}
 
+    # 非表示セッション一覧API
+    @app.get("/api/hidden")
+    async def list_hidden():
+        return {"hidden": app.state.user_data.list_hidden_sessions()}
+
     # 静的ファイル配信（Viteビルド出力の /assets/ を配信）
     assets_dir = STATIC_DIR / "assets"
     if assets_dir.exists():
