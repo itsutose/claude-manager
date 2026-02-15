@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "claude-manager"
 version = "0.1.0"
 description = "Claude Code session manager with Slack-like UI"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
