@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", sans-serif;
+
+  --color-slack-bg: #1a1d21;
+  --color-slack-sidebar: #19171d;
+  --color-slack-hover: #27242c;
+  --color-slack-active: #1164a3;
+  --color-slack-text: #d1d2d3;
+  --color-slack-muted: #ababad;
+  --color-slack-border: #35373b;
+  --color-slack-accent: #1264a3;
+  --color-slack-green: #007a5a;
+  --color-slack-yellow: #e8912d;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #35373b;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4a4c50;
+}
+
+/* Message content */
+.message-content a {
+  color: #1d9bd1;
+  text-decoration: underline;
+}
+.message-content pre {
+  margin: 8px 0;
+}
+.message-content code {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.85em;
+}
