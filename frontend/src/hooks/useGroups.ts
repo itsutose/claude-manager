@@ -77,6 +77,10 @@ export function useGroups() {
     }
   }, [loadGroups, selectedGroupId]);
 
+  const appendMessages = useCallback((...newMessages: SessionMessage[]) => {
+    setMessages((prev) => [...prev, ...newMessages]);
+  }, []);
+
   return {
     groups,
     selectedGroupId,
@@ -89,5 +93,6 @@ export function useGroups() {
     openSession,
     refresh,
     setSelectedSession,
+    appendMessages,
   };
 }

@@ -1,5 +1,6 @@
 import type { ProjectGroupDetail } from "../types";
 import { timeAgo, statusColor } from "../helpers";
+import { AssetsPanel } from "./AssetsPanel";
 
 interface Props {
   group: ProjectGroupDetail;
@@ -65,6 +66,12 @@ export function ProjectOverview({ group, onOpenSession }: Props) {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Assets */}
+      <h3 className="text-lg font-bold text-white mb-3">プロジェクト設定</h3>
+      <div className="mb-8">
+        <AssetsPanel groupId={group.group_id} />
       </div>
 
       {/* Recent */}

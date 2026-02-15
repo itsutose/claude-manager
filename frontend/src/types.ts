@@ -66,3 +66,26 @@ export interface SearchResult {
   group_name: string;
   clone_name: string;
 }
+
+export interface SendMessageResult {
+  success: boolean;
+  result?: string;
+  session_id?: string;
+  cost_usd?: number;
+  error?: string;
+}
+
+export interface AssetFile {
+  name: string;
+  path: string;
+  content: string;
+}
+
+export interface ProjectAssets {
+  project_path: string;
+  claude_md: string | null;
+  local_rules: AssetFile[];
+  local_skills: AssetFile[];
+  global_claude_md: string | null;
+  global_rules: AssetFile[];
+}

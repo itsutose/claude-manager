@@ -4,6 +4,8 @@ import type {
   SessionEntry,
   SessionMessage,
   SearchResult,
+  SendMessageResult,
+  ProjectAssets,
 } from "./types";
 
 export async function fetchGroups(): Promise<ProjectGroup[]> {
@@ -57,5 +59,54 @@ export async function resumeSession(
   const res = await fetch(`/api/sessions/${sessionId}/resume`, {
     method: "POST",
   });
+  return res.json();
+}
+
+export async function sendMessage(
+  sessionId: string,
+  message: string,
+): Promise<SendMessageResult> {
+  const res = await fetch(`/api/sessions/${sessionId}/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  return res.json();
+}
+
+export async function renameSession(
+  sessionId: string,
+  title: string,
+): Promise<{ session_id: string; title: string }> {
+  const res = await fetch(`/api/sessions/${sessionId}/rename`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  return res.json();
+}
+
+export async function autoRenameSession(
+  sessionId: string,
+): Promise<{ session_id: string; title: string }> {
+  const res = await fetch(`/api/sessions/${sessionId}/auto-rename`, {
+    method: "POST",
+  });
+  return res.json();
+}
+
+export async function hideSession(
+  sessionId: string,
+): Promise<{ hidden: boolean }> {
+  const res = await fetch(`/api/sessions/${sessionId}/hide`, {
+    method: "POST",
+  });
+  return res.json();
+}
+
+export async function fetchGroupAssets(
+  groupId: string,
+): Promise<ProjectAssets> {
+  const res = await fetch(`/api/groups/${encodeURIComponent(groupId)}/assets`);
   return res.json();
 }

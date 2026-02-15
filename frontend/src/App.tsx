@@ -20,6 +20,7 @@ export default function App() {
     openSession,
     refresh,
     setSelectedSession,
+    appendMessages,
   } = useGroups();
 
   const [searchOpen, setSearchOpen] = useState(false);
@@ -65,6 +66,7 @@ export default function App() {
           loading={messagesLoading}
           onSessionUpdate={setSelectedSession}
           onRefreshGroup={handleRefreshGroup}
+          onAppendMessages={appendMessages}
         />
       ) : groupDetail ? (
         <ProjectOverview group={groupDetail} onOpenSession={openSession} />
