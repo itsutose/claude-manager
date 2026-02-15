@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Session Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            slack: {
+              bg: '#1a1d21',
+              sidebar: '#19171d',
+              hover: '#27242c',
+              active: '#1164a3',
+              text: '#d1d2d3',
+              muted: '#ababad',
+              border: '#35373b',
+              accent: '#1264a3',
+              green: '#007a5a',
+              yellow: '#e8912d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-slack-bg text-slack-text font-sans h-screen overflow-hidden"
+      x-data="app()" x-init="init()">
+
+  <!-- グローバル検索モーダル (Cmd+K) -->
+  <div x-show="searchOpen" x-cloak
+       @keydown.escape.window="searchOpen = false"
+       @keydown.meta.k.window.prevent="searchOpen = !searchOpen"
+       @keydown.ctrl.k.window.prevent="searchOpen = !searchOpen"
+       class="fixed inset-0 z-50 flex items-start justify-center pt-20">
+    <div class="fixed inset-0 bg-black/60" @click="searchOpen = false"></div>
+    <div class="relative bg-[#222529] rounded-lg shadow-2xl w-[600px] max-h-[500px] border border-slack-border">
+      <div class="p-4">
+        <input type="text" x-model="searchQuery" @input.debounce.300ms="doSearch()"
+               placeholder="セッションを検索..."
+               class="w-full bg-[#1a1d21] text-white px-4 py-3 rounded-md border border-slack-border
+                      focus:outline-none focus:border-slack-accent text-sm"
+               x-ref="searchInput"
+               x-init="$watch('searchOpen', v => v && $nextTick(() => $refs.searchInput.focus()))">
+      </div>
+      <div class="max-h-[380px] overflow-y-auto px-2 pb-2">
+        <template x-if="searchResults.length === 0 && searchQuery.length > 0">
+          <div class="text-slack-muted text-sm px-4 py-8 text-center">結果なし</div>
+        </template>
+        <template x-for="r in searchResults" :key="r.session_id">
+          <div @click="selectSession(r.group_id, r.session_id); searchOpen = false"
+               class="flex items-center gap-3 px-3 py-2 rounded hover:bg-slack-hover cursor-pointer">
+            <span class="text-xs font-bold bg-slack-accent/20 text-slack-accent px-1.5 py-0.5 rounded"
+                  x-text="r.group_initials"></span>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm truncate" x-text="r.display_name"></div>
+              <div class="text-xs text-slack-muted truncate" x-text="r.clone_name"></div>
+            </div>
+            <div class="text-xs text-slack-muted" x-text="timeAgo(r.modified)"></div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- メインレイアウト: 3カラム -->
+  <div class="flex h-screen">
+
+    <!-- カラム1: プロジェクトグループバー -->
+    <div class="w-[52px] bg-[#0f0e11] flex flex-col items-center py-2 gap-1 border-r border-slack-border/50 flex-shrink-0">
+      <template x-for="g in groups" :key="g.group_id">
+        <div @click="selectGroup(g.group_id)"
+             :class="selectedGroupId === g.group_id
+               ? 'bg-slack-accent text-white'
+               : 'bg-[#35373b] text-slack-muted hover:bg-slack-hover hover:text-white'"
+             class="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold cursor-pointer
+                    transition-colors relative"
+             :title="g.display_name">
+          <span x-text="g.initials"></span>
+          <template x-if="g.active_sessions > 0">
+            <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#0f0e11]"></span>
+          </template>
+        </div>
+      </template>
+
+      <div class="flex-1"></div>
+
+      <!-- 検索ボタン -->
+      <div @click="searchOpen = true"
+           class="w-9 h-9 rounded-lg flex items-center justify-center text-slack-muted
+                  hover:bg-slack-hover hover:text-white cursor-pointer transition-colors"
+           title="検索 (Cmd+K)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- カラム2: サイドバー -->
+    <div class="w-[260px] bg-slack-sidebar flex flex-col border-r border-slack-border/50 flex-shrink-0">
+      <!-- プロジェクトヘッダー -->
+      <div class="px-4 py-3 border-b border-slack-border/50">
+        <h2 class="text-white font-bold text-[15px] truncate"
+            x-text="selectedGroup?.display_name || 'Claude Manager'"></h2>
+        <div class="text-xs text-slack-muted mt-0.5"
+             x-text="selectedGroup ? selectedGroup.total_sessions + ' sessions' : ''"></div>
+      </div>
+
+      <!-- サイドバー検索 -->
+      <div class="px-3 py-2">
+        <input type="text" x-model="sidebarFilter" placeholder="フィルタ..."
+               class="w-full bg-[#35373b] text-slack-text text-xs px-3 py-1.5 rounded
+                      border border-transparent focus:outline-none focus:border-slack-accent/50">
+      </div>
+
+      <!-- セッション一覧 -->
+      <div class="flex-1 overflow-y-auto px-2">
+        <template x-if="selectedGroup">
+          <div>
+            <!-- ピン留めセクション -->
+            <template x-if="pinnedSessions.length > 0">
+              <div class="mb-2">
+                <div class="flex items-center gap-1 px-2 py-1 text-slack-muted text-xs font-medium">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.789l1.599.799L9 4.323V3a1 1 0 011-1z"/>
+                  </svg>
+                  ピン留め
+                </div>
+                <template x-for="s in pinnedSessions" :key="s.session_id">
+                  <div @click="openSession(s.session_id)"
+                       :class="selectedSessionId === s.session_id ? 'bg-slack-active text-white' : 'hover:bg-slack-hover'"
+                       class="flex items-center gap-2 px-2 py-1 rounded cursor-pointer group text-sm">
+                    <span class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                          :class="statusColor(s.status)"></span>
+                    <span class="truncate" :class="s.has_unread ? 'font-bold text-white' : ''"
+                          x-text="s.display_name"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <!-- クローン別セッション -->
+            <template x-for="clone in filteredClones" :key="clone.clone_id">
+              <div class="mb-1">
+                <div @click="toggleClone(clone.clone_id)"
+                     class="flex items-center gap-1 px-2 py-1 text-slack-muted text-xs font-medium
+                            cursor-pointer hover:text-white">
+                  <svg class="w-3 h-3 transition-transform" :class="cloneExpanded[clone.clone_id] ? '' : '-rotate-90'"
+                       fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+                  </svg>
+                  <span x-text="clone.clone_name"></span>
+                  <span class="text-[10px] text-slack-muted/60" x-text="clone.session_count"></span>
+                </div>
+                <template x-if="cloneExpanded[clone.clone_id]">
+                  <div>
+                    <template x-for="s in clone.sessions" :key="s.session_id">
+                      <div x-show="matchesFilter(s)"
+                           @click="openSession(s.session_id)"
+                           @contextmenu.prevent="contextSession = s; showContextMenu($event)"
+                           :class="selectedSessionId === s.session_id ? 'bg-slack-active text-white' : 'hover:bg-slack-hover'"
+                           class="flex items-center gap-2 px-2 py-1 rounded cursor-pointer group text-sm ml-2">
+                        <span class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                              :class="statusColor(s.status)"></span>
+                        <span class="truncate"
+                              :class="[
+                                s.has_unread ? 'font-bold text-white' : '',
+                                !s.custom_title ? 'text-slack-muted italic' : ''
+                              ]"
+                              x-text="s.display_name"></span>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- カラム3: メインエリア -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <template x-if="selectedSession">
+        <div class="flex flex-col h-full">
+          <!-- ヘッダーバー -->
+          <div class="border-b border-slack-border/50 px-6 py-3 flex-shrink-0">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-white font-bold text-[15px]" x-text="'# ' + selectedSession.display_name"></h3>
+                <div class="flex items-center gap-3 text-xs text-slack-muted mt-0.5">
+                  <span x-show="selectedSession.git_branch">
+                    branch: <span class="text-slack-text" x-text="selectedSession.git_branch"></span>
+                  </span>
+                  <span x-text="selectedSession.message_count + ' msgs'"></span>
+                  <span x-text="formatDate(selectedSession.created) + ' - ' + formatDate(selectedSession.modified)"></span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button @click="toggleSessionPin(selectedSession.session_id)"
+                        :class="selectedSession.is_pinned ? 'text-yellow-400' : 'text-slack-muted hover:text-white'"
+                        class="p-1.5 rounded hover:bg-slack-hover transition-colors" title="ピン留め">
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.789l1.599.799L9 4.323V3a1 1 0 011-1z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- メッセージ表示エリア -->
+          <div class="flex-1 overflow-y-auto px-6 py-4" x-ref="messageArea">
+            <template x-if="messagesLoading">
+              <div class="flex items-center justify-center py-12">
+                <div class="text-slack-muted text-sm">読み込み中...</div>
+              </div>
+            </template>
+            <template x-for="(msg, idx) in messages" :key="msg.message_id || idx">
+              <div class="mb-4">
+                <!-- 日付セパレーター -->
+                <template x-if="idx === 0 || dateDiffersFrom(msg, messages[idx-1])">
+                  <div class="flex items-center gap-3 my-6">
+                    <div class="flex-1 h-px bg-slack-border/50"></div>
+                    <span class="text-xs text-slack-muted font-medium px-3 py-1 bg-slack-bg rounded-full border border-slack-border/50"
+                          x-text="formatDateFull(msg.timestamp)"></span>
+                    <div class="flex-1 h-px bg-slack-border/50"></div>
+                  </div>
+                </template>
+
+                <!-- メッセージ本体 -->
+                <div class="flex gap-3 group hover:bg-white/[0.02] -mx-2 px-2 py-1 rounded">
+                  <!-- アイコン -->
+                  <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5"
+                       :class="msg.role === 'user' ? 'bg-green-700 text-white' : 'bg-orange-700 text-white'">
+                    <span x-text="msg.role === 'user' ? 'U' : 'C'"></span>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <!-- 名前 + タイムスタンプ -->
+                    <div class="flex items-baseline gap-2">
+                      <span class="font-bold text-white text-[15px]"
+                            x-text="msg.role === 'user' ? 'User' : 'Claude'"></span>
+                      <span class="text-xs text-slack-muted" x-text="formatTime(msg.timestamp)"></span>
+                    </div>
+                    <!-- テキスト内容 -->
+                    <div class="text-[15px] leading-relaxed mt-0.5 message-content"
+                         x-html="renderContent(msg.content)"></div>
+                    <!-- ツール使用 -->
+                    <template x-for="(tool, ti) in msg.tool_uses" :key="ti">
+                      <details class="mt-2 border border-slack-border/30 rounded-md overflow-hidden">
+                        <summary class="flex items-center gap-2 px-3 py-1.5 bg-[#1e2025] cursor-pointer
+                                       text-xs text-slack-muted hover:text-white">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                          </svg>
+                          <span x-text="tool.tool_name"></span>
+                        </summary>
+                        <div class="px-3 py-2 bg-[#16181c] text-xs">
+                          <div class="text-slack-muted mb-1">Input:</div>
+                          <pre class="text-green-400 whitespace-pre-wrap break-all" x-text="tool.input_summary"></pre>
+                          <template x-if="tool.output_summary">
+                            <div class="mt-2">
+                              <div class="text-slack-muted mb-1">Output:</div>
+                              <pre class="text-slate-300 whitespace-pre-wrap break-all max-h-40 overflow-y-auto"
+                                   x-text="tool.output_summary"></pre>
+                            </div>
+                          </template>
+                        </div>
+                      </details>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- アクションバー -->
+          <div class="border-t border-slack-border/50 px-6 py-3 flex items-center gap-3 flex-shrink-0">
+            <button @click="resumeSession(selectedSession.session_id)"
+                    class="bg-slack-green hover:bg-green-700 text-white text-sm font-medium
+                           px-4 py-2 rounded-md transition-colors flex items-center gap-2">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+              </svg>
+              セッションを再開
+            </button>
+            <button @click="copyResumeCommand(selectedSession.session_id)"
+                    class="bg-[#35373b] hover:bg-slack-hover text-slack-text text-sm font-medium
+                           px-4 py-2 rounded-md transition-colors flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              コマンドをコピー
+            </button>
+            <span x-show="copyFeedback" x-transition class="text-xs text-green-400">コピーしました</span>
+          </div>
+        </div>
+      </template>
+
+      <!-- セッション未選択時: プロジェクト概要 -->
+      <template x-if="!selectedSession && selectedGroup">
+        <div class="flex-1 overflow-y-auto p-8">
+          <h2 class="text-white text-2xl font-bold mb-6" x-text="selectedGroup.display_name + ' プロジェクト概要'"></h2>
+
+          <!-- 統計カード -->
+          <div class="grid grid-cols-3 gap-4 mb-8">
+            <div class="bg-[#1e2025] rounded-lg p-5 border border-slack-border/30">
+              <div class="text-slack-muted text-xs font-medium mb-1">総セッション</div>
+              <div class="text-white text-3xl font-bold" x-text="selectedGroup.total_sessions"></div>
+            </div>
+            <div class="bg-[#1e2025] rounded-lg p-5 border border-slack-border/30">
+              <div class="text-slack-muted text-xs font-medium mb-1">アクティブ</div>
+              <div class="text-green-400 text-3xl font-bold" x-text="selectedGroup.active_sessions"></div>
+            </div>
+            <div class="bg-[#1e2025] rounded-lg p-5 border border-slack-border/30">
+              <div class="text-slack-muted text-xs font-medium mb-1">総メッセージ</div>
+              <div class="text-white text-3xl font-bold" x-text="selectedGroup.total_messages"></div>
+            </div>
+          </div>
+
+          <!-- クローン別状況 -->
+          <h3 class="text-white font-bold mb-3">クローン別状況</h3>
+          <div class="space-y-2">
+            <template x-for="clone in selectedGroupDetail?.clones || []" :key="clone.clone_id">
+              <div class="bg-[#1e2025] rounded-lg p-4 border border-slack-border/30
+                          flex items-center justify-between">
+                <div>
+                  <div class="text-white font-medium text-sm" x-text="clone.clone_name"></div>
+                  <div class="text-xs text-slack-muted mt-0.5"
+                       x-text="clone.session_count + ' sessions' + (clone.current_branch ? ' | branch: ' + clone.current_branch : '')">
+                  </div>
+                </div>
+                <div class="text-xs text-slack-muted" x-text="clone.latest_modified ? timeAgo(clone.latest_modified) : ''"></div>
+              </div>
+            </template>
+          </div>
+
+          <!-- 最近のセッション -->
+          <h3 class="text-white font-bold mb-3 mt-8">最近のセッション</h3>
+          <div class="space-y-1">
+            <template x-for="s in recentSessions" :key="s.session_id">
+              <div @click="openSession(s.session_id)"
+                   class="bg-[#1e2025] rounded-lg px-4 py-3 border border-slack-border/30
+                          hover:border-slack-accent/50 cursor-pointer transition-colors
+                          flex items-center justify-between">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="w-2 h-2 rounded-full flex-shrink-0" :class="statusColor(s.status)"></span>
+                  <div class="min-w-0">
+                    <div class="text-sm text-white truncate" x-text="s.display_name"></div>
+                    <div class="text-xs text-slack-muted" x-text="s.clone_name || ''"></div>
+                  </div>
+                </div>
+                <div class="text-xs text-slack-muted flex-shrink-0 ml-4" x-text="timeAgo(s.modified)"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- 初期状態: 何も選択されていない -->
+      <template x-if="!selectedSession && !selectedGroup">
+        <div class="flex-1 flex items-center justify-center">
+          <div class="text-center">
+            <div class="text-4xl mb-4">🤖</div>
+            <div class="text-white text-xl font-bold mb-2">Claude Session Manager</div>
+            <div class="text-slack-muted text-sm">左のプロジェクトを選択するか、Cmd+K で検索</div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
