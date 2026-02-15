@@ -21,6 +21,7 @@ export default function App() {
     refresh,
     setSelectedSession,
     appendMessages,
+    refreshGroupDetail,
   } = useGroups();
 
   const [searchOpen, setSearchOpen] = useState(false);
@@ -38,10 +39,8 @@ export default function App() {
   );
 
   const handleRefreshGroup = useCallback(async () => {
-    if (selectedGroupId) {
-      await selectGroup(selectedGroupId);
-    }
-  }, [selectedGroupId, selectGroup]);
+    await refreshGroupDetail();
+  }, [refreshGroupDetail]);
 
   return (
     <div className="h-screen flex overflow-hidden bg-slack-bg text-slack-text font-sans">

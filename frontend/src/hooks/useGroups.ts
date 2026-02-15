@@ -77,6 +77,18 @@ export function useGroups() {
     }
   }, [loadGroups, selectedGroupId]);
 
+  // セッション選択を維持したままサイドバーだけ更新
+  const refreshGroupDetail = useCallback(async () => {
+    if (selectedGroupId) {
+      const [groupsData, detail] = await Promise.all([
+        fetchGroups(),
+        fetchGroupDetail(selectedGroupId),
+      ]);
+      setGroups(groupsData);
+      setGroupDetail(detail);
+    }
+  }, [selectedGroupId]);
+
   const appendMessages = useCallback((...newMessages: SessionMessage[]) => {
     setMessages((prev) => [...prev, ...newMessages]);
   }, []);
@@ -94,5 +106,6 @@ export function useGroups() {
     refresh,
     setSelectedSession,
     appendMessages,
+    refreshGroupDetail,
   };
 }
