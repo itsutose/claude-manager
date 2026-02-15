@@ -14,3 +14,8 @@ dependencies = [
 
 [project.scripts]
 claude-manager = "claude_manager.main:cli"
+
+[dependency-groups]
+dev = [
+    "playwright>=1.58.0",
+]
