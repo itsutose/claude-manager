@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "sessionId": "sess-001",
+      "firstPrompt": "Pythonでfizzbuzzを書いて",
+      "messageCount": 4,
+      "created": 1700000000000,
+      "modified": 1700000180000,
+      "fileMtime": 1700000180000,
+      "gitBranch": "main",
+      "isSidechain": false,
+      "customTitle": null,
+      "projectPath": "/Users/test/my-project"
+    }
+  ],
+  "originalPath": "/Users/test/my-project"
+}
