@@ -1,4 +1,5 @@
 """models.py のテスト."""
+
 from datetime import datetime, timedelta, timezone
 
 from claude_manager.models import SessionStatus
@@ -15,7 +16,9 @@ class TestSessionEntryDisplayName:
         assert s.display_name == "fizzbuzzを書いて"
 
     def test_strips_xml_tags(self):
-        s = make_session(custom_title=None, first_prompt="<context>除去される</context>本題")
+        s = make_session(
+            custom_title=None, first_prompt="<context>除去される</context>本題"
+        )
         assert "<" not in s.display_name
         assert "本題" in s.display_name
 
@@ -57,10 +60,20 @@ class TestSessionEntryToDict:
         s = make_session()
         d = s.to_dict()
         expected_keys = {
-            "session_id", "clone_id", "group_id", "display_name",
-            "custom_title", "first_prompt", "message_count",
-            "created", "modified", "git_branch", "is_sidechain",
-            "is_pinned", "has_unread", "status",
+            "session_id",
+            "clone_id",
+            "group_id",
+            "display_name",
+            "custom_title",
+            "first_prompt",
+            "message_count",
+            "created",
+            "modified",
+            "git_branch",
+            "is_sidechain",
+            "is_pinned",
+            "has_unread",
+            "status",
         }
         assert set(d.keys()) == expected_keys
 
@@ -85,8 +98,12 @@ class TestProjectClone:
         assert clone.session_count == 2
 
     def test_latest_modified(self):
-        old = make_session(session_id="s1", modified=datetime(2024, 1, 1, tzinfo=timezone.utc))
-        new = make_session(session_id="s2", modified=datetime(2024, 6, 1, tzinfo=timezone.utc))
+        old = make_session(
+            session_id="s1", modified=datetime(2024, 1, 1, tzinfo=timezone.utc)
+        )
+        new = make_session(
+            session_id="s2", modified=datetime(2024, 6, 1, tzinfo=timezone.utc)
+        )
         clone = make_clone(sessions=[old, new])
         assert clone.latest_modified == datetime(2024, 6, 1, tzinfo=timezone.utc)
 
@@ -108,7 +125,9 @@ class TestProjectGroup:
 
     def test_active_sessions(self):
         active = make_session(session_id="s1", modified=datetime.now(timezone.utc))
-        old = make_session(session_id="s2", modified=datetime.now(timezone.utc) - timedelta(days=2))
+        old = make_session(
+            session_id="s2", modified=datetime.now(timezone.utc) - timedelta(days=2)
+        )
         clone = make_clone(sessions=[active, old])
         g = make_group(clones=[clone])
         assert g.active_sessions == 1

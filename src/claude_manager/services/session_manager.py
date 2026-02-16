@@ -1,4 +1,9 @@
-"""sessions-index.json の customTitle 読み書きサービス."""
+"""セッションタイトル管理サービス.
+
+タイトルは titles.json（マネージャ管理）と JSONL custom-title レコード（CLI互換）の
+デュアルストレージで管理する。
+"""
+
 from __future__ import annotations
 
 import json
@@ -11,7 +16,9 @@ from claude_manager.config import Config
 logger = logging.getLogger(__name__)
 
 # タイトル生成時に除去するパターン
-_TAG_BLOCK_RE = re.compile(r"<(\w+)[^>]*>.*?</\1>", re.DOTALL)  # <tag>...</tag> ブロック
+_TAG_BLOCK_RE = re.compile(
+    r"<(\w+)[^>]*>.*?</\1>", re.DOTALL
+)  # <tag>...</tag> ブロック
 _TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
 _MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]+\)")  # [text](url) → text
@@ -23,13 +30,23 @@ _FILE_EXT_RE = re.compile(r"\.\w{1,5}\b")  # .md, .json 等の拡張子
 
 
 class SessionManager:
-    """sessions-index.json の customTitle を管理する."""
+    """セッションタイトルを管理する.
+
+    書き込み時:
+      1. ~/.claude-manager/titles.json に保存（マネージャの正）
+      2. JSONL 末尾に custom-title レコードを追記（CLI resume picker 互換）
+
+    読み込み優先順位:
+      1. titles.json
+      2. JSONL の custom-title レコード
+      3. first_prompt からの自動生成
+    """
 
     def __init__(self, config: Config) -> None:
         self.config = config
 
-    def _find_index_file(self, session_id: str) -> Path | None:
-        """session_id が含まれる sessions-index.json を見つける."""
+    def _find_jsonl_file(self, session_id: str) -> Path | None:
+        """session_id に対応する JSONL ファイルを見つける."""
         projects_dir = self.config.projects_dir
         if not projects_dir.exists():
             return None
@@ -37,78 +54,68 @@ class SessionManager:
         for project_dir in projects_dir.iterdir():
             if not project_dir.is_dir():
                 continue
-            index_file = project_dir / "sessions-index.json"
-            if not index_file.exists():
-                continue
-            try:
-                data = json.loads(index_file.read_text())
-                entries = data.get("entries", [])
-                for entry in entries:
-                    if entry.get("sessionId") == session_id:
-                        return index_file
-            except (json.JSONDecodeError, OSError):
-                continue
+            jsonl = project_dir / f"{session_id}.jsonl"
+            if jsonl.exists():
+                return jsonl
         return None
 
-    def rename_session(self, session_id: str, title: str) -> bool:
-        """sessions-index.json の customTitle を書き換える.
-
-        Returns:
-            成功したら True
-        """
-        index_file = self._find_index_file(session_id)
-        if not index_file:
-            logger.warning("sessions-index.json not found for session %s", session_id)
-            return False
-
+    def _save_to_titles_json(self, session_id: str, title: str) -> bool:
+        """titles.json にタイトルを保存する."""
         try:
-            data = json.loads(index_file.read_text())
-            entries = data.get("entries", [])
-            found = False
-            for entry in entries:
-                if entry.get("sessionId") == session_id:
-                    entry["customTitle"] = title
-                    found = True
-                    break
-            if not found:
-                return False
-            index_file.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+            self.config.ensure_manager_dir()
+            titles: dict[str, str] = {}
+            if self.config.titles_file.exists():
+                titles = json.loads(self.config.titles_file.read_text())
+            titles[session_id] = title
+            self.config.titles_file.write_text(
+                json.dumps(titles, indent=2, ensure_ascii=False),
+            )
             return True
         except (json.JSONDecodeError, OSError) as e:
-            logger.error("Failed to write sessions-index.json: %s", e)
+            logger.error("Failed to write titles.json: %s", e)
             return False
 
-    def auto_rename_session(self, session_id: str) -> str | None:
-        """firstPrompt からルールベースでタイトルを自動生成し、customTitle に設定する.
+    def _append_to_jsonl(self, session_id: str, title: str) -> bool:
+        """JSONL 末尾に custom-title レコードを追記する（CLI互換）."""
+        jsonl_path = self._find_jsonl_file(session_id)
+        if not jsonl_path:
+            logger.warning("JSONL file not found for session %s", session_id)
+            return False
+
+        record = {
+            "type": "custom-title",
+            "customTitle": title,
+            "sessionId": session_id,
+        }
+        try:
+            with open(jsonl_path, "a") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            return True
+        except OSError as e:
+            logger.error("Failed to append custom-title to JSONL: %s", e)
+            return False
+
+    def rename_session(self, session_id: str, title: str) -> bool:
+        """セッションタイトルを設定する（デュアルストレージ）.
+
+        Returns:
+            titles.json への保存が成功したら True
+        """
+        saved = self._save_to_titles_json(session_id, title)
+        # JSONL への追記は best-effort（失敗しても titles.json があればOK）
+        self._append_to_jsonl(session_id, title)
+        return saved
+
+    def auto_rename_session(self, session_id: str, first_prompt: str) -> str | None:
+        """first_prompt からルールベースでタイトルを自動生成し、保存する.
 
         Returns:
             生成されたタイトル。失敗時は None。
         """
-        index_file = self._find_index_file(session_id)
-        if not index_file:
-            logger.warning("sessions-index.json not found for session %s", session_id)
-            return None
-
-        try:
-            data = json.loads(index_file.read_text())
-            entries = data.get("entries", [])
-            target_entry = None
-            for entry in entries:
-                if entry.get("sessionId") == session_id:
-                    target_entry = entry
-                    break
-            if not target_entry:
-                return None
-
-            first_prompt = target_entry.get("firstPrompt", "")
-            title = self._generate_title(first_prompt)
-
-            target_entry["customTitle"] = title
-            index_file.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        title = self._generate_title(first_prompt)
+        if self.rename_session(session_id, title):
             return title
-        except (json.JSONDecodeError, OSError) as e:
-            logger.error("Failed to auto-rename session: %s", e)
-            return None
+        return None
 
     def _generate_title(self, first_prompt: str) -> str:
         """firstPrompt からルールベースで短いタイトル（20文字以内）を生成する."""

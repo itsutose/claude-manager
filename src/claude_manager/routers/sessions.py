@@ -130,12 +130,12 @@ async def rename_session_persistent(session_id: str, body: RenameBody, request: 
     if not session:
         return {"error": "Session not found"}
 
-    # sessions-index.json への書き込みを試みる（orphanの場合は失敗してもOK）
+    # titles.json + JSONL に保存
     config = request.app.state.config
     mgr = SessionManager(config)
     mgr.rename_session(session_id, body.title)
 
-    # メモリ上の状態を更新（こちらが確実に反映される）
+    # メモリ上の状態を更新
     session.custom_title = body.title
 
     return {"session_id": session_id, "title": body.title}
@@ -153,7 +153,7 @@ async def auto_rename_session(session_id: str, request: Request):
     if not title:
         return {"error": "タイトル生成に失敗しました"}
 
-    # sessions-index.json への書き込みを試みる（orphanの場合は失敗してもOK）
+    # titles.json + JSONL に保存
     config = request.app.state.config
     mgr = SessionManager(config)
     mgr.rename_session(session_id, title)
