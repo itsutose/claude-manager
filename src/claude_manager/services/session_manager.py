@@ -8,25 +8,11 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from pathlib import Path
 
 from claude_manager.config import Config
 
 logger = logging.getLogger(__name__)
-
-# タイトル生成時に除去するパターン
-_TAG_BLOCK_RE = re.compile(
-    r"<(\w+)[^>]*>.*?</\1>", re.DOTALL
-)  # <tag>...</tag> ブロック
-_TAG_RE = re.compile(r"<[^>]+>")
-_WHITESPACE_RE = re.compile(r"\s+")
-_MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]+\)")  # [text](url) → text
-_FILE_URL_RE = re.compile(r"file:///\S+")
-_URL_RE = re.compile(r"https?://\S+")
-_FILE_PATH_RE = re.compile(r"(?:/[\w./-]+){2,}")  # /foo/bar/baz 形式のパス
-_LINE_REF_RE = re.compile(r"#L\d+[:\-]\d+")  # #L123:456 形式の行参照
-_FILE_EXT_RE = re.compile(r"\.\w{1,5}\b")  # .md, .json 等の拡張子
 
 
 class SessionManager:
@@ -106,55 +92,3 @@ class SessionManager:
         self._append_to_jsonl(session_id, title)
         return saved
 
-    def auto_rename_session(self, session_id: str, first_prompt: str) -> str | None:
-        """first_prompt からルールベースでタイトルを自動生成し、保存する.
-
-        Returns:
-            生成されたタイトル。失敗時は None。
-        """
-        title = self._generate_title(first_prompt)
-        if self.rename_session(session_id, title):
-            return title
-        return None
-
-    def _generate_title(self, first_prompt: str) -> str:
-        """firstPrompt からルールベースで短いタイトル（20文字以内）を生成する."""
-        if not first_prompt:
-            return "(名前なし)"
-
-        # Markdownリンク [text](url) → テキスト部分を残す
-        text = _MD_LINK_RE.sub(r"\1", first_prompt)
-        # XMLタグブロックを除去（<tag>...</tag> 全体）
-        text = _TAG_BLOCK_RE.sub(" ", text)
-        # 残った単独タグを除去
-        text = _TAG_RE.sub(" ", text)
-        # URL・ファイルパスを除去
-        text = _FILE_URL_RE.sub("", text)
-        text = _URL_RE.sub("", text)
-        text = _FILE_PATH_RE.sub("", text)
-        # 行参照・拡張子を除去
-        text = _LINE_REF_RE.sub("", text)
-        text = _FILE_EXT_RE.sub("", text)
-        # 残ったノイズ文字を除去
-        text = text.replace("@", "").replace("[", "").replace("]", "")
-        # 連続する空白を1つにまとめる
-        text = _WHITESPACE_RE.sub(" ", text).strip()
-
-        if not text or len(text) < 2:
-            return "(名前なし)"
-
-        # 先頭30文字を取得し、20文字以内に整形
-        snippet = text[:30]
-
-        # 句読点・改行で区切って最初の意味のある部分を取得
-        for sep in ["\n", "。", ".", "、", ",", "！", "!", "？", "?"]:
-            idx = snippet.find(sep)
-            if 0 < idx <= 20:
-                snippet = snippet[:idx]
-                break
-
-        # 20文字以内にトリム
-        if len(snippet) > 20:
-            snippet = snippet[:18] + ".."
-
-        return snippet.strip() or "(名前なし)"
