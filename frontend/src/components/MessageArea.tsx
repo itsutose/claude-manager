@@ -30,6 +30,43 @@ function dateDiffersFrom(
   );
 }
 
+/** テキストなし・ツールのみのアシスタントメッセージかどうか */
+function isToolOnlyMessage(msg: SessionMessage): boolean {
+  return msg.role === "assistant" && !msg.content.trim() && msg.tool_uses.length > 0;
+}
+
+interface ToolEntry { tool_name: string; input_summary: string; output_summary: string }
+
+type DisplayItem =
+  | { kind: "message"; msg: SessionMessage }
+  | { kind: "tool-group"; tools: ToolEntry[] };
+
+/** 連続するツール専用メッセージをグループ化 */
+function groupMessages(messages: SessionMessage[]): DisplayItem[] {
+  const items: DisplayItem[] = [];
+  let pendingTools: ToolEntry[] = [];
+
+  const flushTools = () => {
+    if (pendingTools.length > 0) {
+      items.push({ kind: "tool-group", tools: [...pendingTools] });
+      pendingTools = [];
+    }
+  };
+
+  for (const msg of messages) {
+    if (isToolOnlyMessage(msg)) {
+      for (const t of msg.tool_uses) {
+        pendingTools.push({ tool_name: t.tool_name, input_summary: t.input_summary, output_summary: t.output_summary });
+      }
+    } else {
+      flushTools();
+      items.push({ kind: "message", msg });
+    }
+  }
+  flushTools();
+  return items;
+}
+
 export function MessageArea({
   session,
   messages,
@@ -113,7 +150,7 @@ export function MessageArea({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSend();
     }
@@ -259,76 +296,107 @@ export function MessageArea({
           </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((msg, i) => {
-              const prev = i > 0 ? messages[i - 1] : null;
-              const showDate = i === 0 || dateDiffersFrom(msg, prev);
-              return (
-                <div key={msg.message_id}>
-                  {showDate && msg.timestamp && (
-                    <div className="flex items-center gap-3 my-4">
-                      <div className="flex-1 h-px bg-slack-border/50" />
-                      <span className="text-xs text-slack-muted font-medium">
-                        {formatDateFull(msg.timestamp)}
-                      </span>
-                      <div className="flex-1 h-px bg-slack-border/50" />
-                    </div>
-                  )}
-                  <div className="flex gap-3">
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
-                        msg.role === "user"
-                          ? "bg-green-600 text-white"
-                          : "bg-orange-600 text-white"
-                      }`}
-                    >
-                      {msg.role === "user" ? "U" : "C"}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-white font-bold text-sm">
-                          {msg.role === "user" ? "You" : "Claude"}
+            {(() => {
+              const items = groupMessages(messages);
+              let lastMsg: SessionMessage | null = null;
+              return items.map((item, i) => {
+                if (item.kind === "tool-group") {
+                  // ツールグループ: ツール名をカウントして1行にまとめる
+                  const counts = new Map<string, number>();
+                  for (const t of item.tools) {
+                    counts.set(t.tool_name, (counts.get(t.tool_name) ?? 0) + 1);
+                  }
+                  const summary = [...counts.entries()]
+                    .map(([name, count]) => count > 1 ? `${name} ×${count}` : name)
+                    .join(", ");
+                  return (
+                    <details key={`tg-${i}`} className="ml-11 border border-slack-border/30 rounded">
+                      <summary className="px-3 py-1 text-xs text-slack-muted cursor-pointer hover:text-white">
+                        🔧 {summary}
+                      </summary>
+                      <div className="px-3 py-2 space-y-1 bg-[#16181c] border-t border-slack-border/30">
+                        {item.tools.map((tool, j) => (
+                          <div key={j} className="text-xs text-slack-muted">
+                            <span className="text-slack-text">{tool.tool_name}</span>
+                            {tool.input_summary && <span className="ml-2">{tool.input_summary}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                }
+
+                const msg = item.msg;
+                const showDate = !lastMsg || dateDiffersFrom(msg, lastMsg);
+                lastMsg = msg;
+                return (
+                  <div key={msg.message_id}>
+                    {showDate && msg.timestamp && (
+                      <div className="flex items-center gap-3 my-4">
+                        <div className="flex-1 h-px bg-slack-border/50" />
+                        <span className="text-xs text-slack-muted font-medium">
+                          {formatDateFull(msg.timestamp)}
                         </span>
-                        {msg.timestamp && (
-                          <span className="text-xs text-slack-muted">
-                            {formatTime(msg.timestamp)}
+                        <div className="flex-1 h-px bg-slack-border/50" />
+                      </div>
+                    )}
+                    <div className="flex gap-3">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
+                          msg.role === "user"
+                            ? "bg-green-600 text-white"
+                            : "bg-orange-600 text-white"
+                        }`}
+                      >
+                        {msg.role === "user" ? "U" : "C"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-white font-bold text-sm">
+                            {msg.role === "user" ? "You" : "Claude"}
                           </span>
+                          {msg.timestamp && (
+                            <span className="text-xs text-slack-muted">
+                              {formatTime(msg.timestamp)}
+                            </span>
+                          )}
+                        </div>
+                        {msg.content && (
+                          <div
+                            className="message-content text-sm text-slack-text leading-relaxed"
+                            dangerouslySetInnerHTML={{
+                              __html: renderContent(msg.content),
+                            }}
+                          />
+                        )}
+                        {msg.tool_uses.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {msg.tool_uses.map((tool, j) => (
+                              <details
+                                key={j}
+                                className="border border-slack-border/30 rounded"
+                              >
+                                <summary className="px-3 py-1.5 text-xs text-slack-muted cursor-pointer hover:text-white">
+                                  🔧 {tool.tool_name}
+                                </summary>
+                                <div className="px-3 py-2 text-xs text-slack-muted bg-[#16181c] border-t border-slack-border/30">
+                                  <div>{tool.input_summary}</div>
+                                  {tool.output_summary && (
+                                    <div className="mt-1 text-slack-text">
+                                      {tool.output_summary}
+                                    </div>
+                                  )}
+                                </div>
+                              </details>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      {msg.content && (
-                        <div
-                          className="message-content text-sm text-slack-text leading-relaxed"
-                          dangerouslySetInnerHTML={{
-                            __html: renderContent(msg.content),
-                          }}
-                        />
-                      )}
-                      {msg.tool_uses.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {msg.tool_uses.map((tool, j) => (
-                            <details
-                              key={j}
-                              className="border border-slack-border/30 rounded"
-                            >
-                              <summary className="px-3 py-1.5 text-xs text-slack-muted cursor-pointer hover:text-white">
-                                🔧 {tool.tool_name}
-                              </summary>
-                              <div className="px-3 py-2 text-xs text-slack-muted bg-[#16181c] border-t border-slack-border/30">
-                                <div>{tool.input_summary}</div>
-                                {tool.output_summary && (
-                                  <div className="mt-1 text-slack-text">
-                                    {tool.output_summary}
-                                  </div>
-                                )}
-                              </div>
-                            </details>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
 
             {/* Sending indicator */}
             {sending && (
@@ -360,7 +428,7 @@ export function MessageArea({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="メッセージを送信（Shift+Enterで改行）"
+              placeholder="メッセージを送信（Cmd+Enterで送信）"
               disabled={sending}
               rows={1}
               className="w-full bg-[#35373b] text-white text-sm px-4 py-2.5 rounded-lg border border-slack-border focus:outline-none focus:border-slack-accent resize-none disabled:opacity-50"

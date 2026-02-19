@@ -28,3 +28,5 @@ testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 python_classes = ["Test*", "Describe*"]
+log_cli = true
+log_cli_level = "INFO"
