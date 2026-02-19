@@ -2,15 +2,38 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
 import shutil
+import time
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 300  # 5分
 TITLE_TIMEOUT = 30  # タイトル生成は30秒
+
+IMAGES_DIR = Path.home() / ".claude-manager" / "images"
+
+
+def save_images(images_b64: list[str]) -> list[str]:
+    """base64エンコードされた画像をファイルに保存し、パスのリストを返す."""
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    paths: list[str] = []
+    ts = int(time.time() * 1000)
+    for i, data in enumerate(images_b64):
+        # data:image/png;base64,... 形式の場合はヘッダを除去
+        if "," in data:
+            data = data.split(",", 1)[1]
+        raw = base64.b64decode(data)
+        fname = f"{ts}_{i}.png"
+        path = IMAGES_DIR / fname
+        path.write_bytes(raw)
+        paths.append(str(path))
+        logger.info("Saved image: %s (%d bytes)", path, len(raw))
+    return paths
 
 
 def _find_claude_binary() -> str | None:
@@ -26,6 +49,7 @@ async def send_message(
     session_id: str,
     message: str,
     project_path: str,
+    image_paths: list[str] | None = None,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> dict:
     """claude -p --resume でメッセージを送り、結果を返す."""
@@ -33,9 +57,20 @@ async def send_message(
     if not claude_bin:
         return {"success": False, "error": "claude binary not found"}
 
+    # 画像パスがあればメッセージに添付情報を追記
+    full_message = message
+    if image_paths:
+        paths_list = "\n".join(f"- {p}" for p in image_paths)
+        instruction = (
+            f"以下の画像ファイルが添付されています。"
+            f"まずReadツールで各画像ファイルを読み込んで内容を確認してから回答してください。\n\n"
+            f"{paths_list}"
+        )
+        full_message = f"{message}\n\n{instruction}" if message else instruction
+
     cmd = [
         claude_bin,
-        "-p", message,
+        "-p", full_message,
         "--resume", session_id,
         "--dangerously-skip-permissions",
         "--output-format", "json",

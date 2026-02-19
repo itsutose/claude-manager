@@ -3,6 +3,7 @@ import { GroupBar } from "./components/GroupBar";
 import { Sidebar } from "./components/Sidebar";
 import { MessageArea } from "./components/MessageArea";
 import { ProjectOverview } from "./components/ProjectOverview";
+import { Dashboard } from "./components/Dashboard";
 import { SearchModal } from "./components/SearchModal";
 import { useGroups } from "./hooks/useGroups";
 import { useSSE } from "./hooks/useSSE";
@@ -74,11 +75,11 @@ export default function App() {
         />
       ) : groupDetail ? (
         <ProjectOverview group={groupDetail} onOpenSession={openSession} />
+      ) : selectedGroupId === null ? (
+        <Dashboard />
       ) : (
         <div className="flex-1 flex items-center justify-center text-slack-muted">
-          {selectedGroupId === null
-            ? "ホーム（準備中）"
-            : "プロジェクトを選択してください"}
+          プロジェクトを選択してください
         </div>
       )}
 

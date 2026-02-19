@@ -66,11 +66,16 @@ export async function resumeSession(
 export async function sendMessage(
   sessionId: string,
   message: string,
+  images?: string[],
 ): Promise<SendMessageResult> {
+  const payload: { message: string; images?: string[] } = { message };
+  if (images && images.length > 0) {
+    payload.images = images;
+  }
   const res = await fetch(`/api/sessions/${sessionId}/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(payload),
   });
   return res.json();
 }

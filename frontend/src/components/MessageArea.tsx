@@ -80,6 +80,9 @@ export function MessageArea({
   const [inputValue, setInputValue] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [pastedImages, setPastedImages] = useState<
+    { data: string; preview: string }[]
+  >([]);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
 
@@ -104,26 +107,82 @@ export function MessageArea({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    if (sending) return;
+
+    // clipboardData.files を優先（macOS スクリーンショット等で確実）
+    const files = e.clipboardData.files;
+    if (files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith("image/")) continue;
+        e.preventDefault();
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          setPastedImages((prev) => [
+            ...prev,
+            { data: dataUrl, preview: dataUrl },
+          ]);
+        };
+        reader.readAsDataURL(file);
+      }
+      return;
+    }
+
+    // fallback: DataTransferItemList
+    const items = Array.from(e.clipboardData.items);
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          setPastedImages((prev) => [
+            ...prev,
+            { data: dataUrl, preview: dataUrl },
+          ]);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setPastedImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSend = async () => {
     const msg = inputValue.trim();
-    if (!msg || sending) return;
+    const hasImages = pastedImages.length > 0;
+    if ((!msg && !hasImages) || sending) return;
 
     setSending(true);
     setSendError(null);
     setInputValue("");
+    const imagesToSend = [...pastedImages];
+    setPastedImages([]);
 
     // ユーザーメッセージを即座に表示
+    const displayContent = hasImages
+      ? `${msg}${msg ? "\n\n" : ""}[画像 ${imagesToSend.length}枚添付]`
+      : msg;
     const userMsg: SessionMessage = {
       message_id: `temp-${Date.now()}`,
       role: "user",
-      content: msg,
+      content: displayContent,
       timestamp: new Date().toISOString(),
       tool_uses: [],
     };
     onAppendMessages(userMsg);
 
     try {
-      const result = await sendMessage(session.session_id, msg);
+      const images = hasImages
+        ? imagesToSend.map((img) => img.data)
+        : undefined;
+      const result = await sendMessage(session.session_id, msg, images);
       if (result.success && result.result) {
         const assistantMsg: SessionMessage = {
           message_id: `temp-${Date.now()}-response`,
@@ -133,7 +192,6 @@ export function MessageArea({
           tool_uses: [],
         };
         onAppendMessages(assistantMsg);
-        // メッセージ数を更新
         onSessionUpdate({
           ...session,
           message_count: session.message_count + 2,
@@ -421,6 +479,26 @@ export function MessageArea({
         {sendError && (
           <div className="text-xs text-red-400 mb-2">{sendError}</div>
         )}
+        {/* 画像プレビュー */}
+        {pastedImages.length > 0 && (
+          <div className="flex gap-2 mb-2 flex-wrap">
+            {pastedImages.map((img, i) => (
+              <div key={i} className="relative group">
+                <img
+                  src={img.preview}
+                  alt={`添付画像 ${i + 1}`}
+                  className="w-16 h-16 object-cover rounded border border-slack-border/50"
+                />
+                <button
+                  onClick={() => removeImage(i)}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  x
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-3">
           <div className="flex-1 relative">
             <textarea
@@ -428,7 +506,8 @@ export function MessageArea({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="メッセージを送信（Cmd+Enterで送信）"
+              onPaste={handlePaste}
+              placeholder="メッセージを送信（Cmd+Enterで送信、画像ペースト可）"
               disabled={sending}
               rows={1}
               className="w-full bg-[#35373b] text-white text-sm px-4 py-2.5 rounded-lg border border-slack-border focus:outline-none focus:border-slack-accent resize-none disabled:opacity-50"
@@ -442,7 +521,7 @@ export function MessageArea({
           </div>
           <button
             onClick={handleSend}
-            disabled={!inputValue.trim() || sending}
+            disabled={(!inputValue.trim() && pastedImages.length === 0) || sending}
             className="px-4 py-2.5 bg-slack-accent text-white text-sm rounded-lg hover:bg-slack-accent/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           >
             送信
