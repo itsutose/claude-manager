@@ -28,11 +28,12 @@ export async function fetchSession(sessionId: string): Promise<SessionEntry> {
 
 export async function fetchMessages(
   sessionId: string,
-  limit = 100,
+  limit?: number,
 ): Promise<{ messages: SessionMessage[]; has_more: boolean }> {
-  const res = await fetch(
-    `/api/sessions/${sessionId}/messages?limit=${limit}`,
-  );
+  const url = limit
+    ? `/api/sessions/${sessionId}/messages?limit=${limit}`
+    : `/api/sessions/${sessionId}/messages`;
+  const res = await fetch(url);
   return res.json();
 }
 

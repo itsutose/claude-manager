@@ -45,7 +45,7 @@ async def get_session(session_id: str, request: Request):
 async def get_messages(
     session_id: str,
     request: Request,
-    limit: int = 50,
+    limit: int | None = None,
     offset: int = 0,
 ):
     """セッションのメッセージ一覧."""
@@ -74,7 +74,7 @@ async def get_messages(
             }
             for m in messages
         ],
-        "has_more": len(messages) == limit,
+        "has_more": limit is not None and len(messages) == limit,
     }
 
 
