@@ -19,7 +19,7 @@ export function ProjectOverview({ group, onOpenSession }: Props) {
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <h2 className="text-2xl font-bold text-white mb-6">
-        {group.display_name} プロジェクト概要
+        {group.display_name}
       </h2>
 
       {/* Stats */}
