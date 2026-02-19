@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 
 from claude_manager.config import Config
 from claude_manager.services.index_reader import read_all_sessions
-from claude_manager.services.group_detector import detect_groups
+from claude_manager.services.group_detector import detect_groups_from_config
 from claude_manager.services.user_data import UserDataStore
 from claude_manager.services.watcher import FileWatcher
 from claude_manager.routers import groups, sessions, search, events
@@ -31,7 +31,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 def build_groups(config: Config):
     """セッションを読み取り、グループ化して返す."""
     all_sessions = read_all_sessions(config)
-    return detect_groups(all_sessions, config)
+    return detect_groups_from_config(all_sessions, config)
 
 
 @asynccontextmanager
