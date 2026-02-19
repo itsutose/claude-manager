@@ -50,6 +50,7 @@ async def lifespan(app: FastAPI):
 
     # ファイル監視開始
     watcher = FileWatcher(config)
+    watcher.set_reload_callback(lambda: setattr(app.state, "groups", build_groups(config)))
     app.state.watcher = watcher
     watcher_task = asyncio.create_task(watcher.start())
 
