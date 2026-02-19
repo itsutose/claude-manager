@@ -75,7 +75,16 @@ export function useGroups() {
       const detail = await fetchGroupDetail(currentGroupId);
       setGroupDetail(detail);
     }
-  }, [loadGroups, selectedGroupId]);
+    // 表示中セッションのメッセージも再取得
+    if (selectedSessionId) {
+      const [session, msgData] = await Promise.all([
+        fetchSession(selectedSessionId),
+        fetchMessages(selectedSessionId),
+      ]);
+      setSelectedSession(session);
+      setMessages(msgData.messages);
+    }
+  }, [loadGroups, selectedGroupId, selectedSessionId]);
 
   // セッション選択を維持したままサイドバーだけ更新
   const refreshGroupDetail = useCallback(async () => {
