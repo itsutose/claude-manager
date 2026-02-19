@@ -41,6 +41,14 @@ export function useGroups() {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const selectHome = useCallback(() => {
+    setSelectedGroupId(null);
+    setGroupDetail(null);
+    setSelectedSessionId(null);
+    setSelectedSession(null);
+    setMessages([]);
+  }, []);
+
   const selectGroup = useCallback(async (groupId: string) => {
     setSelectedGroupId(groupId);
     setSelectedSessionId(null);
@@ -110,6 +118,7 @@ export function useGroups() {
     selectedSession,
     messages,
     messagesLoading,
+    selectHome,
     selectGroup,
     openSession,
     refresh,

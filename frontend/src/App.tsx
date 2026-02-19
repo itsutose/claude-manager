@@ -16,6 +16,7 @@ export default function App() {
     selectedSession,
     messages,
     messagesLoading,
+    selectHome,
     selectGroup,
     openSession,
     refresh,
@@ -48,14 +49,18 @@ export default function App() {
         groups={groups}
         selectedGroupId={selectedGroupId}
         onSelectGroup={selectGroup}
+        onSelectHome={selectHome}
         onSearchOpen={() => setSearchOpen(true)}
       />
 
-      <Sidebar
-        groupDetail={groupDetail}
-        selectedSessionId={selectedSessionId}
-        onOpenSession={openSession}
-      />
+      {selectedGroupId && (
+        <Sidebar
+          groupDetail={groupDetail}
+          selectedSessionId={selectedSessionId}
+          onOpenSession={openSession}
+          onRefreshGroup={handleRefreshGroup}
+        />
+      )}
 
       {/* Main area */}
       {selectedSession ? (
@@ -71,7 +76,9 @@ export default function App() {
         <ProjectOverview group={groupDetail} onOpenSession={openSession} />
       ) : (
         <div className="flex-1 flex items-center justify-center text-slack-muted">
-          プロジェクトを選択してください
+          {selectedGroupId === null
+            ? "ホーム（準備中）"
+            : "プロジェクトを選択してください"}
         </div>
       )}
 

@@ -1,57 +1,215 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ProjectGroupDetail,
   ProjectClone,
   SessionEntry,
 } from "../types";
 import { statusColor } from "../helpers";
+import { renameSession, togglePin, hideSession } from "../api";
 
-interface Props {
-  groupDetail: ProjectGroupDetail | null;
-  selectedSessionId: string | null;
-  onOpenSession: (sessionId: string) => void;
+// --- Context Menu ---
+
+interface MenuState {
+  sessionId: string;
+  x: number;
+  y: number;
 }
+
+interface RenameState {
+  sessionId: string;
+  currentName: string;
+}
+
+function ContextMenu({
+  menu,
+  session,
+  onClose,
+  onRename,
+  onTogglePin,
+  onHide,
+}: {
+  menu: MenuState;
+  session: SessionEntry | undefined;
+  onClose: () => void;
+  onRename: (sessionId: string, currentName: string) => void;
+  onTogglePin: (sessionId: string) => void;
+  onHide: (sessionId: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  if (!session) return null;
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-50 bg-[#2b2d31] border border-slack-border/50 rounded-lg shadow-xl py-1 min-w-[160px]"
+      style={{ top: menu.y, left: menu.x }}
+    >
+      <button
+        onClick={() => {
+          onRename(menu.sessionId, session.display_name);
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-sm text-slack-text hover:bg-slack-hover flex items-center gap-2"
+      >
+        <svg className="w-3.5 h-3.5 text-slack-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+        名前を変更
+      </button>
+      <button
+        onClick={() => {
+          onTogglePin(menu.sessionId);
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-sm text-slack-text hover:bg-slack-hover flex items-center gap-2"
+      >
+        <svg className="w-3.5 h-3.5 text-slack-muted" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.789l1.599.799L9 4.323V3a1 1 0 011-1z" />
+        </svg>
+        {session.is_pinned ? "ピン解除" : "ピン留め"}
+      </button>
+      <div className="h-px bg-slack-border/30 my-1" />
+      <button
+        onClick={() => {
+          onHide(menu.sessionId);
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-sm text-red-400 hover:bg-slack-hover flex items-center gap-2"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l18 18" />
+        </svg>
+        非表示
+      </button>
+    </div>
+  );
+}
+
+// --- Session Item ---
 
 function SessionItem({
   session,
   selected,
   onClick,
+  onMenuOpen,
+  renaming,
+  renameValue,
+  onRenameChange,
+  onRenameSubmit,
+  onRenameCancel,
 }: {
   session: SessionEntry;
   selected: boolean;
   onClick: () => void;
+  onMenuOpen: (sessionId: string, e: React.MouseEvent) => void;
+  renaming: boolean;
+  renameValue: string;
+  onRenameChange: (v: string) => void;
+  onRenameSubmit: () => void;
+  onRenameCancel: () => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renaming && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [renaming]);
+
+  if (renaming) {
+    return (
+      <div className="w-full px-2 py-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={renameValue}
+          onChange={(e) => onRenameChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onRenameSubmit();
+            if (e.key === "Escape") onRenameCancel();
+          }}
+          onBlur={onRenameCancel}
+          className="w-full bg-[#35373b] text-white text-sm px-2 py-0.5 rounded border border-slack-accent/50 focus:outline-none focus:border-slack-accent"
+        />
+      </div>
+    );
+  }
+
   return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-sm text-left ${
-        selected
-          ? "bg-slack-active text-white"
-          : "hover:bg-slack-hover"
-      }`}
-    >
-      <span
-        className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor(session.status)}`}
-      />
-      <span
-        className={`truncate ${
-          session.has_unread ? "font-bold text-white" : ""
-        } ${!session.custom_title ? "text-slack-muted italic" : ""}`}
+    <div className="group relative">
+      <button
+        onClick={onClick}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onMenuOpen(session.session_id, e);
+        }}
+        className={`w-full flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-sm text-left ${
+          selected
+            ? "bg-slack-active text-white"
+            : "hover:bg-slack-hover"
+        }`}
       >
-        {session.display_name}
-      </span>
-    </button>
+        <span
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor(session.status)}`}
+        />
+        <span
+          className={`truncate flex-1 ${
+            session.has_unread ? "font-bold text-white" : ""
+          } ${!session.custom_title ? "text-slack-muted italic" : ""}`}
+        >
+          {session.display_name}
+        </span>
+      </button>
+      {/* Three-dot menu on hover */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onMenuOpen(session.session_id, e);
+        }}
+        className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-slack-muted hover:text-white hover:bg-slack-hover opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+        </svg>
+      </button>
+    </div>
   );
 }
+
+// --- Clone Section ---
 
 function CloneSection({
   clone,
   selectedSessionId,
   onOpenSession,
+  onMenuOpen,
+  renamingSessionId,
+  renameValue,
+  onRenameChange,
+  onRenameSubmit,
+  onRenameCancel,
 }: {
   clone: ProjectClone;
   selectedSessionId: string | null;
   onOpenSession: (sessionId: string) => void;
+  onMenuOpen: (sessionId: string, e: React.MouseEvent) => void;
+  renamingSessionId: string | null;
+  renameValue: string;
+  onRenameChange: (v: string) => void;
+  onRenameSubmit: () => void;
+  onRenameCancel: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
 
@@ -84,6 +242,12 @@ function CloneSection({
               session={s}
               selected={selectedSessionId === s.session_id}
               onClick={() => onOpenSession(s.session_id)}
+              onMenuOpen={onMenuOpen}
+              renaming={renamingSessionId === s.session_id}
+              renameValue={renameValue}
+              onRenameChange={onRenameChange}
+              onRenameSubmit={onRenameSubmit}
+              onRenameCancel={onRenameCancel}
             />
           ))}
         </div>
@@ -92,12 +256,90 @@ function CloneSection({
   );
 }
 
+// --- Sidebar ---
+
+interface Props {
+  groupDetail: ProjectGroupDetail | null;
+  selectedSessionId: string | null;
+  onOpenSession: (sessionId: string) => void;
+  onRefreshGroup?: () => void;
+}
+
 export function Sidebar({
   groupDetail,
   selectedSessionId,
   onOpenSession,
+  onRefreshGroup,
 }: Props) {
   const [filter, setFilter] = useState("");
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [renameState, setRenameState] = useState<RenameState | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  // Find a session by ID from all clones
+  const findSession = useCallback(
+    (sessionId: string): SessionEntry | undefined => {
+      if (!groupDetail) return undefined;
+      for (const clone of groupDetail.clones) {
+        const s = clone.sessions.find((s) => s.session_id === sessionId);
+        if (s) return s;
+      }
+      return undefined;
+    },
+    [groupDetail],
+  );
+
+  const handleMenuOpen = useCallback(
+    (sessionId: string, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Position menu near the click, but keep within viewport
+      const x = Math.min(e.clientX, window.innerWidth - 180);
+      const y = Math.min(e.clientY, window.innerHeight - 150);
+      setMenu({ sessionId, x, y });
+    },
+    [],
+  );
+
+  const handleMenuClose = useCallback(() => setMenu(null), []);
+
+  const handleStartRename = useCallback(
+    (sessionId: string, currentName: string) => {
+      setRenameState({ sessionId, currentName });
+      setRenameValue(currentName);
+    },
+    [],
+  );
+
+  const handleRenameSubmit = useCallback(async () => {
+    if (!renameState || !renameValue.trim()) {
+      setRenameState(null);
+      return;
+    }
+    await renameSession(renameState.sessionId, renameValue.trim());
+    setRenameState(null);
+    onRefreshGroup?.();
+  }, [renameState, renameValue, onRefreshGroup]);
+
+  const handleRenameCancel = useCallback(() => {
+    setRenameState(null);
+  }, []);
+
+  const handleTogglePin = useCallback(
+    async (sessionId: string) => {
+      await togglePin(sessionId);
+      onRefreshGroup?.();
+    },
+    [onRefreshGroup],
+  );
+
+  const handleHide = useCallback(
+    async (sessionId: string) => {
+      await hideSession(sessionId);
+      onRefreshGroup?.();
+    },
+    [onRefreshGroup],
+  );
 
   const pinnedSessions: SessionEntry[] = [];
   if (groupDetail) {
@@ -151,6 +393,12 @@ export function Sidebar({
                 session={s}
                 selected={selectedSessionId === s.session_id}
                 onClick={() => onOpenSession(s.session_id)}
+                onMenuOpen={handleMenuOpen}
+                renaming={renameState?.sessionId === s.session_id}
+                renameValue={renameValue}
+                onRenameChange={setRenameValue}
+                onRenameSubmit={handleRenameSubmit}
+                onRenameCancel={handleRenameCancel}
               />
             ))}
           </div>
@@ -173,9 +421,27 @@ export function Sidebar({
               clone={clone}
               selectedSessionId={selectedSessionId}
               onOpenSession={onOpenSession}
+              onMenuOpen={handleMenuOpen}
+              renamingSessionId={renameState?.sessionId ?? null}
+              renameValue={renameValue}
+              onRenameChange={setRenameValue}
+              onRenameSubmit={handleRenameSubmit}
+              onRenameCancel={handleRenameCancel}
             />
           ))}
       </div>
+
+      {/* Context Menu */}
+      {menu && (
+        <ContextMenu
+          menu={menu}
+          session={findSession(menu.sessionId)}
+          onClose={handleMenuClose}
+          onRename={handleStartRename}
+          onTogglePin={handleTogglePin}
+          onHide={handleHide}
+        />
+      )}
     </div>
   );
 }
