@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from claude_manager.services.message_parser import parse_session_messages, extract_user_messages
 from claude_manager.services.session_manager import SessionManager
-from claude_manager.services.session_interactor import send_message, generate_title, save_images
+from claude_manager.services.session_interactor import send_message, create_new_session, generate_title, save_images
 from claude_manager.services.terminal import build_resume_command, resume_in_tmux
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -19,6 +19,60 @@ def _find_session(groups, session_id: str):
                 if s.session_id == session_id:
                     return s, c, g
     return None, None, None
+
+
+class CreateSessionBody(BaseModel):
+    group_id: str
+    clone_id: str
+    message: str
+    images: list[str] = []
+
+
+@router.post("/create")
+async def create_session(body: CreateSessionBody, request: Request):
+    """新規セッションを作成（claude -p、--resume なし）."""
+    # group_id + clone_id から対象クローンを検索
+    groups = request.app.state.groups
+    target_group = None
+    for g in groups:
+        if g.group_id == body.group_id:
+            target_group = g
+            break
+
+    if not target_group or not target_group.clones:
+        return {"success": False, "error": "Group not found"}
+
+    # clone_id に一致するクローンを探す
+    target_clone = None
+    for c in target_group.clones:
+        if c.clone_id == body.clone_id:
+            target_clone = c
+            break
+
+    if not target_clone:
+        return {"success": False, "error": "Clone not found"}
+
+    project_path = target_clone.project_path
+    if not project_path:
+        return {"success": False, "error": "Project path not found"}
+
+    # 画像があればファイルに保存
+    image_paths: list[str] = []
+    if body.images:
+        image_paths = save_images(body.images)
+
+    result = await create_new_session(
+        message=body.message,
+        project_path=project_path,
+        image_paths=image_paths,
+    )
+
+    # 成功時、グループデータを再読み込み
+    if result.get("success"):
+        from claude_manager.main import build_groups
+        request.app.state.groups = build_groups(request.app.state.config)
+
+    return result
 
 
 @router.get("/{session_id}")

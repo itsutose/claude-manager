@@ -195,6 +195,7 @@ function CloneSection({
   selectedSessionId,
   onOpenSession,
   onMenuOpen,
+  onNewSession,
   renamingSessionId,
   renameValue,
   onRenameChange,
@@ -205,6 +206,7 @@ function CloneSection({
   selectedSessionId: string | null;
   onOpenSession: (sessionId: string) => void;
   onMenuOpen: (sessionId: string, e: React.MouseEvent) => void;
+  onNewSession?: (cloneId: string) => void;
   renamingSessionId: string | null;
   renameValue: string;
   onRenameChange: (v: string) => void;
@@ -215,25 +217,41 @@ function CloneSection({
 
   return (
     <div className="mb-1">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-1 px-2 py-1 text-slack-muted text-xs font-medium cursor-pointer hover:text-white"
-      >
-        <svg
-          className={`w-3 h-3 transition-transform ${expanded ? "" : "-rotate-90"}`}
-          fill="currentColor"
-          viewBox="0 0 20 20"
+      <div className="group/clone flex items-center">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-1 flex items-center gap-1 px-2 py-1 text-slack-muted text-xs font-medium cursor-pointer hover:text-white"
         >
-          <path
-            fillRule="evenodd"
-            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-          />
-        </svg>
-        <span>{clone.clone_name}</span>
-        <span className="text-[10px] text-slack-muted/60">
-          {clone.session_count}
-        </span>
-      </button>
+          <svg
+            className={`w-3 h-3 transition-transform ${expanded ? "" : "-rotate-90"}`}
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path
+              fillRule="evenodd"
+              d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+            />
+          </svg>
+          <span>{clone.clone_name}</span>
+          <span className="text-[10px] text-slack-muted/60">
+            {clone.session_count}
+          </span>
+        </button>
+        {onNewSession && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onNewSession(clone.clone_id);
+            }}
+            className="w-5 h-5 mr-1 rounded flex items-center justify-center text-slack-muted hover:text-white hover:bg-slack-hover opacity-0 group-hover/clone:opacity-100 transition-opacity shrink-0"
+            title="新規セッション"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        )}
+      </div>
       {expanded && (
         <div className="ml-2">
           {clone.sessions.map((s) => (
@@ -263,6 +281,7 @@ interface Props {
   selectedSessionId: string | null;
   onOpenSession: (sessionId: string) => void;
   onRefreshGroup?: () => void;
+  onNewSession?: (cloneId: string) => void;
 }
 
 export function Sidebar({
@@ -270,6 +289,7 @@ export function Sidebar({
   selectedSessionId,
   onOpenSession,
   onRefreshGroup,
+  onNewSession,
 }: Props) {
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -422,6 +442,7 @@ export function Sidebar({
               selectedSessionId={selectedSessionId}
               onOpenSession={onOpenSession}
               onMenuOpen={handleMenuOpen}
+              onNewSession={onNewSession}
               renamingSessionId={renameState?.sessionId ?? null}
               renameValue={renameValue}
               onRenameChange={setRenameValue}

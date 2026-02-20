@@ -106,6 +106,12 @@ export function useGroups() {
     }
   }, [selectedGroupId]);
 
+  const clearSession = useCallback(() => {
+    setSelectedSessionId(null);
+    setSelectedSession(null);
+    setMessages([]);
+  }, []);
+
   const appendMessages = useCallback((...newMessages: SessionMessage[]) => {
     setMessages((prev) => [...prev, ...newMessages]);
   }, []);
@@ -123,6 +129,7 @@ export function useGroups() {
     openSession,
     refresh,
     setSelectedSession,
+    clearSession,
     appendMessages,
     refreshGroupDetail,
   };
