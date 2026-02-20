@@ -147,7 +147,7 @@ async def generate_title(user_messages: list[str]) -> str | None:
     instruction = (
         "stdinで渡されたテキストは、ユーザーがAIアシスタントに送ったメッセージの一覧です。"
         "このセッション全体の内容を要約した短いタイトルを1つだけ出力してください。"
-        " ルール: 15文字以内の簡潔なタイトルのみを出力。"
+        " ルール: 40文字以内の簡潔なタイトルのみを出力。"
         "説明、引用符、括弧は不要。"
         "「〜について」「〜の件」等の冗長な表現は避ける。"
         "具体的な技術名や操作内容を含める。"
@@ -195,6 +195,6 @@ async def generate_title(user_messages: list[str]) -> str | None:
     # 余計な引用符や改行を除去
     title = title.strip('"\'「」\n')
     # 長すぎる場合はトリム
-    if len(title) > 25:
-        title = title[:23] + ".."
+    if len(title) > 45:
+        title = title[:43] + ".."
     return title or None
