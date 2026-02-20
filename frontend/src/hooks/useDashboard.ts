@@ -313,7 +313,9 @@ export function useDashboard() {
           loadColumnData(col.sessionId).then((data) => {
             setColumns((p) =>
               p.map((c) =>
-                c.sessionId === data.sessionId && !c.sending ? data : c,
+                c.sessionId === data.sessionId && !c.sending
+                  ? { ...data, inputValue: c.inputValue }
+                  : c,
               ),
             );
           });
