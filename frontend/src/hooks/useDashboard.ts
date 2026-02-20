@@ -14,7 +14,6 @@ import {
 
 const STORAGE_KEY = "dashboard_columns";
 const MAX_COLUMNS = 4;
-const MESSAGES_LIMIT = 30;
 
 export interface ColumnState {
   sessionId: string;
@@ -45,6 +44,8 @@ export function useDashboard() {
   const [allSessions, setAllSessions] = useState<SessionEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const initializedRef = useRef(false);
+  const columnsRef = useRef<ColumnState[]>([]);
+  columnsRef.current = columns;
 
   // Fetch all sessions across all groups
   const loadAllSessions = useCallback(async (): Promise<SessionEntry[]> => {
@@ -74,7 +75,7 @@ export function useDashboard() {
       try {
         const [session, msgData] = await Promise.all([
           fetchSession(sessionId),
-          fetchMessages(sessionId, MESSAGES_LIMIT),
+          fetchMessages(sessionId),
         ]);
         return {
           sessionId,
@@ -227,19 +228,11 @@ export function useDashboard() {
 
   // Send message in a column
   const sendColumnMessage = useCallback(async (sessionId: string) => {
-    let inputValue = "";
-    let session: SessionEntry | null = null;
+    const col = columnsRef.current.find((c) => c.sessionId === sessionId);
+    if (!col) return;
 
-    setColumns((prev) =>
-      prev.map((c) => {
-        if (c.sessionId === sessionId) {
-          inputValue = c.inputValue.trim();
-          session = c.session;
-        }
-        return c;
-      }),
-    );
-
+    const inputValue = col.inputValue.trim();
+    const session = col.session;
     if (!inputValue || !session) return;
 
     // Optimistic: add user message, clear input, set sending
