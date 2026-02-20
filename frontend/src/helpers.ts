@@ -49,6 +49,31 @@ export function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
+/** Markdownテーブル行群をHTMLテーブルに変換 */
+function renderTable(lines: string[]): string {
+  const parseRow = (line: string): string[] =>
+    line.split("|").slice(1, -1).map((c) => c.trim());
+
+  const headers = parseRow(lines[0]);
+  // lines[1] はセパレーター (---|---) なのでスキップ
+  const bodyRows = lines.slice(2).map(parseRow);
+
+  const thCells = headers
+    .map(
+      (h) =>
+        `<th class="px-3 py-1.5 text-left text-xs font-bold text-white border border-slack-border/30">${h}</th>`,
+    )
+    .join("");
+  const tbodyRows = bodyRows
+    .map(
+      (cells) =>
+        `<tr>${cells.map((c) => `<td class="px-3 py-1.5 text-xs text-slack-text border border-slack-border/30">${c}</td>`).join("")}</tr>`,
+    )
+    .join("");
+
+  return `<table class="border-collapse border border-slack-border/30 my-2 w-full overflow-x-auto"><thead class="bg-[#16181c]"><tr>${thCells}</tr></thead><tbody>${tbodyRows}</tbody></table>`;
+}
+
 export function renderContent(text: string): string {
   if (!text) return "";
   let html = escapeHtml(text);
@@ -66,6 +91,15 @@ export function renderContent(text: string): string {
   html = html.replace(
     /\*\*(.+?)\*\*/g,
     '<strong class="text-white font-bold">$1</strong>',
+  );
+  // Markdown tables (must be before newline conversion)
+  html = html.replace(
+    /(?:^|\n)(\|.+\|)\n(\|[\s:|-]+\|)\n((?:\|.+\|\n?)+)/g,
+    (_match, headerLine, _sepLine, bodyBlock) => {
+      const bodyLines = bodyBlock.trim().split("\n");
+      const allLines = [headerLine, _sepLine, ...bodyLines];
+      return "\n" + renderTable(allLines);
+    },
   );
   // Newlines
   html = html.replace(/\n/g, "<br>");
