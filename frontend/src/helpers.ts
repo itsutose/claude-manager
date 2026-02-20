@@ -101,7 +101,8 @@ export function renderContent(text: string): string {
       return "\n" + renderTable(allLines);
     },
   );
-  // Newlines
+  // Newlines: collapse 2+ consecutive newlines into a single <br>
+  html = html.replace(/\n{2,}/g, "<br>");
   html = html.replace(/\n/g, "<br>");
   return html;
 }

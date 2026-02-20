@@ -353,7 +353,7 @@ export function MessageArea({
             読み込み中...
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {(() => {
               const items = groupMessages(messages);
               let lastMsg: SessionMessage | null = null;
