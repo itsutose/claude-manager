@@ -10,6 +10,35 @@ from claude_manager.models import SessionMessage, ToolUse
 
 logger = logging.getLogger(__name__)
 
+MAX_USER_MESSAGES_FOR_TITLE = 10
+
+
+def extract_user_messages(jsonl_path: str, max_count: int = MAX_USER_MESSAGES_FOR_TITLE) -> list[str]:
+    """JSONLからユーザーメッセージのテキストだけを軽量に抽出する."""
+    path = Path(jsonl_path)
+    if not path.exists():
+        return []
+
+    messages: list[str] = []
+    try:
+        with open(path) as f:
+            for line in f:
+                try:
+                    record = json.loads(line.strip())
+                except json.JSONDecodeError:
+                    continue
+                if record.get("type") != "user":
+                    continue
+                msg = record.get("message", {})
+                text = _extract_text_content(msg.get("content", ""))
+                if text.strip():
+                    messages.append(text.strip())
+                    if len(messages) >= max_count:
+                        break
+    except OSError:
+        pass
+    return messages
+
 
 def _parse_timestamp(value: str | int | float | None) -> datetime | None:
     if value is None:

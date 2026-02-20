@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from claude_manager.services.message_parser import parse_session_messages
+from claude_manager.services.message_parser import parse_session_messages, extract_user_messages
 from claude_manager.services.session_manager import SessionManager
 from claude_manager.services.session_interactor import send_message, generate_title, save_images
 from claude_manager.services.terminal import build_resume_command, resume_in_tmux
@@ -148,8 +148,11 @@ async def auto_rename_session(session_id: str, request: Request):
     if not session:
         return {"error": "Session not found"}
 
-    # Haiku でタイトル生成
-    title = await generate_title(session.first_prompt)
+    # ユーザーメッセージを複数件抽出してタイトル生成
+    user_messages = extract_user_messages(session.full_path)
+    if not user_messages:
+        user_messages = [session.first_prompt] if session.first_prompt else []
+    title = await generate_title(user_messages)
     if not title:
         return {"error": "タイトル生成に失敗しました"}
 
