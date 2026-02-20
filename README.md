@@ -23,13 +23,13 @@ cd frontend && pnpm install && pnpm run build && cd ..
 
 ```bash
 # 方法1: CLIから（ブラウザ自動起動）
-uv run claude-manager serve
+uv run claude-manager serve --reload
 
 # 方法2: uvicornで直接
-uv run uvicorn --factory claude_manager.main:create_app --host 127.0.0.1 --port 8420
+uv run uvicorn --factory claude_manager.main:create_app --host 127.0.0.1 --port 8420 --reload
 
 # オプション
-uv run claude-manager serve --port 9000 --no-browser
+uv run claude-manager serve --port 9000 --no-browser --reload
 ```
 
 http://127.0.0.1:8420 でアクセス。

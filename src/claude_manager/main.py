@@ -120,6 +120,7 @@ def cli():
     serve_parser.add_argument("--port", type=int, default=8420)
     serve_parser.add_argument("--no-browser", action="store_true")
     serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--reload", action="store_true", help="Auto-reload on code changes")
 
     args = parser.parse_args()
 
@@ -129,10 +130,7 @@ def cli():
         port = getattr(args, "port", 8420)
         host = getattr(args, "host", "127.0.0.1")
         no_browser = getattr(args, "no_browser", False)
-
-        config = Config.load()
-        config.port = port
-        app = create_app(config)
+        reload = getattr(args, "reload", False)
 
         if not no_browser:
             # サーバー起動後にブラウザを開く
@@ -144,7 +142,23 @@ def cli():
             threading.Thread(target=open_browser, daemon=True).start()
 
         logger.info("Starting Claude Session Manager on http://%s:%d", host, port)
-        uvicorn.run(app, host=host, port=port, log_level="info")
+
+        if reload:
+            # --reload時はモジュールパス文字列 + factory で渡す
+            uvicorn.run(
+                "claude_manager.main:create_app",
+                factory=True,
+                host=host,
+                port=port,
+                log_level="info",
+                reload=True,
+                reload_dirs=["src"],
+            )
+        else:
+            config = Config.load()
+            config.port = port
+            app = create_app(config)
+            uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":
