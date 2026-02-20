@@ -92,6 +92,23 @@ export function renderContent(text: string): string {
     /\*\*(.+?)\*\*/g,
     '<strong class="text-white font-bold">$1</strong>',
   );
+  // Headings (must be before newline conversion)
+  html = html.replace(
+    /(?:^|\n)####\s+(.+)/g,
+    '\n<h4 class="text-sm font-bold text-white mt-2 mb-0.5">$1</h4>',
+  );
+  html = html.replace(
+    /(?:^|\n)###\s+(.+)/g,
+    '\n<h3 class="text-base font-bold text-white mt-3 mb-1">$1</h3>',
+  );
+  html = html.replace(
+    /(?:^|\n)##\s+(.+)/g,
+    '\n<h2 class="text-lg font-bold text-white mt-3 mb-1">$1</h2>',
+  );
+  html = html.replace(
+    /(?:^|\n)#\s+(.+)/g,
+    '\n<h1 class="text-xl font-bold text-white mt-4 mb-1">$1</h1>',
+  );
   // Markdown tables (must be before newline conversion)
   html = html.replace(
     /(?:^|\n)(\|.+\|)\n(\|[\s:|-]+\|)\n((?:\|.+\|\n?)+)/g,
