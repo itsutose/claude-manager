@@ -66,6 +66,7 @@ export default function App() {
       {/* Main area */}
       {selectedSession ? (
         <MessageArea
+          key={selectedSession.session_id}
           session={selectedSession}
           messages={messages}
           loading={messagesLoading}
