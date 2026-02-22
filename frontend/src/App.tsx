@@ -104,7 +104,7 @@ export default function App() {
           {/* Resize handle */}
           <div
             onMouseDown={onResizeStart}
-            className="w-1 shrink-0 cursor-col-resize hover:bg-slack-accent/40 active:bg-slack-accent/60 transition-colors"
+            className="w-1.5 shrink-0 cursor-col-resize hover:bg-slack-accent/40 active:bg-slack-accent/60 transition-colors"
           />
         </>
       )}
