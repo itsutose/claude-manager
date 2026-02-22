@@ -34,6 +34,12 @@ uv run claude-manager serve --port 9000 --no-browser --reload
 
 http://127.0.0.1:8420 でアクセス。
 
+プロセスの特定
+```sh
+# ポート番号を指定して一発で止める
+lsof -ti :8420 | xargs kill -9
+```
+
 ## フロントエンド開発
 
 ```bash
