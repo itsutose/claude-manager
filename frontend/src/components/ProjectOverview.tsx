@@ -7,7 +7,7 @@ interface Props {
   group: ProjectGroupDetail;
   onOpenSession: (sessionId: string) => void;
   isCreatingSession?: boolean;
-  onCreateSession?: (message: string) => Promise<void>;
+  onCreateSession?: (message: string, images?: string[]) => Promise<void>;
   onCancelCreate?: () => void;
 }
 
@@ -15,21 +15,73 @@ function NewSessionForm({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (message: string) => Promise<void>;
+  onSubmit: (message: string, images?: string[]) => Promise<void>;
   onCancel: () => void;
 }) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pastedImages, setPastedImages] = useState<
+    { data: string; preview: string }[]
+  >([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    if (sending) return;
+
+    const files = e.clipboardData.files;
+    if (files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith("image/")) continue;
+        e.preventDefault();
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          setPastedImages((prev) => [
+            ...prev,
+            { data: dataUrl, preview: dataUrl },
+          ]);
+        };
+        reader.readAsDataURL(file);
+      }
+      return;
+    }
+
+    const items = Array.from(e.clipboardData.items);
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          setPastedImages((prev) => [
+            ...prev,
+            { data: dataUrl, preview: dataUrl },
+          ]);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setPastedImages((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async () => {
     const trimmed = message.trim();
-    if (!trimmed || sending) return;
+    const hasImages = pastedImages.length > 0;
+    if ((!trimmed && !hasImages) || sending) return;
     setSending(true);
     setError(null);
     try {
-      await onSubmit(trimmed);
+      const images = hasImages
+        ? pastedImages.map((img) => img.data)
+        : undefined;
+      await onSubmit(trimmed, images);
     } catch (e) {
       setError(e instanceof Error ? e.message : "送信に失敗しました");
       setSending(false);
@@ -47,6 +99,25 @@ function NewSessionForm({
           キャンセル
         </button>
       </div>
+      {pastedImages.length > 0 && (
+        <div className="flex gap-2 mb-2 flex-wrap">
+          {pastedImages.map((img, i) => (
+            <div key={i} className="relative group">
+              <img
+                src={img.preview}
+                alt={`添付画像 ${i + 1}`}
+                className="w-16 h-16 object-cover rounded border border-slack-border/50"
+              />
+              <button
+                onClick={() => removeImage(i)}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                x
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <textarea
         ref={textareaRef}
         value={message}
@@ -60,7 +131,8 @@ function NewSessionForm({
             onCancel();
           }
         }}
-        placeholder="メッセージを入力..."
+        onPaste={handlePaste}
+        placeholder="メッセージを入力...（画像ペースト可）"
         className="w-full bg-[#35373b] text-white text-sm px-3 py-2 rounded border border-transparent focus:outline-none focus:border-slack-accent/50 resize-none"
         rows={4}
         autoFocus
@@ -71,11 +143,11 @@ function NewSessionForm({
       )}
       <div className="flex items-center justify-between mt-3">
         <span className="text-xs text-slack-muted">
-          Cmd+Enter で送信
+          Cmd+Enter で送信 / 画像はペーストで添付
         </span>
         <button
           onClick={handleSubmit}
-          disabled={!message.trim() || sending}
+          disabled={!message.trim() && pastedImages.length === 0 || sending}
           className="px-4 py-1.5 bg-slack-accent text-white text-sm rounded font-medium hover:bg-slack-accent/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {sending && (
