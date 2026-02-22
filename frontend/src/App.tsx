@@ -74,6 +74,14 @@ export default function App() {
           onSessionUpdate={setSelectedSession}
           onRefreshGroup={handleRefreshGroup}
           onAppendMessages={appendMessages}
+          initialInputValue={draftMap.current.get(selectedSession.session_id) ?? ""}
+          onInputValueChange={(v) => {
+            if (v) {
+              draftMap.current.set(selectedSession.session_id, v);
+            } else {
+              draftMap.current.delete(selectedSession.session_id);
+            }
+          }}
         />
       ) : groupDetail ? (
         <ProjectOverview group={groupDetail} onOpenSession={openSession} />
