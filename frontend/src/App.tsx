@@ -59,9 +59,9 @@ export default function App() {
   }, [clearSession]);
 
   const handleCreateSession = useCallback(
-    async (message: string) => {
+    async (message: string, images?: string[]) => {
       if (!selectedGroupId || !creatingCloneId) return;
-      const result = await createSession(selectedGroupId, creatingCloneId, message);
+      const result = await createSession(selectedGroupId, creatingCloneId, message, images);
       if (!result.success) {
         throw new Error(result.error ?? "セッション作成に失敗しました");
       }
