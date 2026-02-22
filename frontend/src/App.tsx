@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { GroupBar } from "./components/GroupBar";
 import { Sidebar } from "./components/Sidebar";
 import { MessageArea } from "./components/MessageArea";
@@ -31,6 +31,7 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [creatingCloneId, setCreatingCloneId] = useState<string | null>(null);
+  const draftMap = useRef<Map<string, string>>(new Map());
 
   useSSE(refresh);
 

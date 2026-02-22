@@ -369,6 +369,15 @@ export function DashboardColumn({
               const t = e.currentTarget;
               t.style.height = "auto";
               t.style.height = Math.min(t.scrollHeight, 80) + "px";
+              if (areaRef.current) {
+                const a = areaRef.current;
+                const atBottom = a.scrollHeight - a.scrollTop - a.clientHeight < 80;
+                if (atBottom) {
+                  requestAnimationFrame(() => {
+                    a.scrollTop = a.scrollHeight;
+                  });
+                }
+              }
             }}
           />
           <button
