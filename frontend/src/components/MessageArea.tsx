@@ -76,10 +76,17 @@ export function MessageArea({
   onSessionUpdate,
   onRefreshGroup,
   onAppendMessages,
+  initialInputValue = "",
+  onInputValueChange,
 }: Props) {
   const areaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValueRaw] = useState(initialInputValue);
+
+  const setInputValue = (value: string) => {
+    setInputValueRaw(value);
+    onInputValueChange?.(value);
+  };
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [pastedImages, setPastedImages] = useState<
