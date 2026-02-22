@@ -7,6 +7,7 @@ import { Dashboard } from "./components/Dashboard";
 import { SearchModal } from "./components/SearchModal";
 import { useGroups } from "./hooks/useGroups";
 import { useSSE } from "./hooks/useSSE";
+import { useResizable } from "./hooks/useResizable";
 import { createSession } from "./api";
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
   const draftMap = useRef<Map<string, string>>(new Map());
 
   useSSE(refresh);
+  const { width: sidebarWidth, onMouseDown: onResizeStart } = useResizable();
 
   const handleSearchResult = useCallback(
     async (groupId: string, sessionId: string) => {
@@ -90,13 +92,21 @@ export default function App() {
       />
 
       {selectedGroupId && (
-        <Sidebar
-          groupDetail={groupDetail}
-          selectedSessionId={selectedSessionId}
-          onOpenSession={openSession}
-          onRefreshGroup={handleRefreshGroup}
-          onNewSession={handleNewSession}
-        />
+        <>
+          <Sidebar
+            groupDetail={groupDetail}
+            selectedSessionId={selectedSessionId}
+            onOpenSession={openSession}
+            onRefreshGroup={handleRefreshGroup}
+            onNewSession={handleNewSession}
+            width={sidebarWidth}
+          />
+          {/* Resize handle */}
+          <div
+            onMouseDown={onResizeStart}
+            className="w-1 shrink-0 cursor-col-resize hover:bg-slack-accent/40 active:bg-slack-accent/60 transition-colors"
+          />
+        </>
       )}
 
       {/* Main area */}

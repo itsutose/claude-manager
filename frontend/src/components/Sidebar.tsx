@@ -356,6 +356,7 @@ interface Props {
   onOpenSession: (sessionId: string) => void;
   onRefreshGroup?: () => void;
   onNewSession?: (cloneId: string) => void;
+  width?: number;
 }
 
 export function Sidebar({
@@ -364,6 +365,7 @@ export function Sidebar({
   onOpenSession,
   onRefreshGroup,
   onNewSession,
+  width,
 }: Props) {
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -455,7 +457,10 @@ export function Sidebar({
   }
 
   return (
-    <div className="w-[260px] bg-slack-sidebar flex flex-col border-r border-slack-border/50 shrink-0">
+    <div
+      className="bg-slack-sidebar flex flex-col border-r border-slack-border/50 shrink-0"
+      style={{ width: width ?? 260 }}
+    >
       {/* Header */}
       <div className="px-4 py-3 border-b border-slack-border/50">
         <h2 className="text-white font-bold text-[15px] truncate">
