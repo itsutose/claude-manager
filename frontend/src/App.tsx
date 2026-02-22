@@ -7,6 +7,7 @@ import { Dashboard } from "./components/Dashboard";
 import { SearchModal } from "./components/SearchModal";
 import { useGroups } from "./hooks/useGroups";
 import { useSSE } from "./hooks/useSSE";
+import { createSession } from "./api";
 
 export default function App() {
   const {
@@ -22,11 +23,14 @@ export default function App() {
     openSession,
     refresh,
     setSelectedSession,
+    clearSession,
     appendMessages,
     refreshGroupDetail,
   } = useGroups();
 
   const [searchOpen, setSearchOpen] = useState(false);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [creatingCloneId, setCreatingCloneId] = useState<string | null>(null);
   const draftMap = useRef<Map<string, string>>(new Map());
 
   useSSE(refresh);
@@ -45,6 +49,36 @@ export default function App() {
     await refreshGroupDetail();
   }, [refreshGroupDetail]);
 
+  const handleNewSession = useCallback((cloneId: string) => {
+    setIsCreatingSession(true);
+    setCreatingCloneId(cloneId);
+    // セッション選択を解除して ProjectOverview を表示
+    clearSession();
+  }, [clearSession]);
+
+  const handleCreateSession = useCallback(
+    async (message: string) => {
+      if (!selectedGroupId || !creatingCloneId) return;
+      const result = await createSession(selectedGroupId, creatingCloneId, message);
+      if (!result.success) {
+        throw new Error(result.error ?? "セッション作成に失敗しました");
+      }
+      setIsCreatingSession(false);
+      setCreatingCloneId(null);
+      // グループデータ再読み込み → 新セッションを開く
+      await refreshGroupDetail();
+      if (result.session_id) {
+        await openSession(result.session_id);
+      }
+    },
+    [selectedGroupId, creatingCloneId, refreshGroupDetail, openSession],
+  );
+
+  const handleCancelCreate = useCallback(() => {
+    setIsCreatingSession(false);
+    setCreatingCloneId(null);
+  }, []);
+
   return (
     <div className="h-screen flex overflow-hidden bg-slack-bg text-slack-text font-sans">
       <GroupBar
@@ -61,6 +95,7 @@ export default function App() {
           selectedSessionId={selectedSessionId}
           onOpenSession={openSession}
           onRefreshGroup={handleRefreshGroup}
+          onNewSession={handleNewSession}
         />
       )}
 
@@ -84,7 +119,13 @@ export default function App() {
           }}
         />
       ) : groupDetail ? (
-        <ProjectOverview group={groupDetail} onOpenSession={openSession} />
+        <ProjectOverview
+          group={groupDetail}
+          onOpenSession={openSession}
+          isCreatingSession={isCreatingSession}
+          onCreateSession={handleCreateSession}
+          onCancelCreate={handleCancelCreate}
+        />
       ) : selectedGroupId === null ? (
         <Dashboard />
       ) : (

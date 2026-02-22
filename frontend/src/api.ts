@@ -80,6 +80,28 @@ export async function sendMessage(
   return res.json();
 }
 
+export async function createSession(
+  groupId: string,
+  cloneId: string,
+  message: string,
+  images?: string[],
+): Promise<SendMessageResult> {
+  const payload: { group_id: string; clone_id: string; message: string; images?: string[] } = {
+    group_id: groupId,
+    clone_id: cloneId,
+    message,
+  };
+  if (images && images.length > 0) {
+    payload.images = images;
+  }
+  const res = await fetch("/api/sessions/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
 export async function renameSession(
   sessionId: string,
   title: string,

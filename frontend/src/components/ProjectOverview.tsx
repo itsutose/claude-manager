@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import type { ProjectGroupDetail } from "../types";
 import { timeAgo, statusColor } from "../helpers";
 import { AssetsPanel } from "./AssetsPanel";
@@ -5,9 +6,98 @@ import { AssetsPanel } from "./AssetsPanel";
 interface Props {
   group: ProjectGroupDetail;
   onOpenSession: (sessionId: string) => void;
+  isCreatingSession?: boolean;
+  onCreateSession?: (message: string) => Promise<void>;
+  onCancelCreate?: () => void;
 }
 
-export function ProjectOverview({ group, onOpenSession }: Props) {
+function NewSessionForm({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (message: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleSubmit = async () => {
+    const trimmed = message.trim();
+    if (!trimmed || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      await onSubmit(trimmed);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "送信に失敗しました");
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="border border-slack-accent/50 rounded-lg p-4 mb-6 bg-[#2b2d31]">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-white font-bold text-sm">新規セッション</h3>
+        <button
+          onClick={onCancel}
+          className="text-slack-muted hover:text-white text-xs"
+        >
+          キャンセル
+        </button>
+      </div>
+      <textarea
+        ref={textareaRef}
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            handleSubmit();
+          }
+          if (e.key === "Escape") {
+            onCancel();
+          }
+        }}
+        placeholder="メッセージを入力..."
+        className="w-full bg-[#35373b] text-white text-sm px-3 py-2 rounded border border-transparent focus:outline-none focus:border-slack-accent/50 resize-none"
+        rows={4}
+        autoFocus
+        disabled={sending}
+      />
+      {error && (
+        <div className="text-red-400 text-xs mt-2">{error}</div>
+      )}
+      <div className="flex items-center justify-between mt-3">
+        <span className="text-xs text-slack-muted">
+          Cmd+Enter で送信
+        </span>
+        <button
+          onClick={handleSubmit}
+          disabled={!message.trim() || sending}
+          className="px-4 py-1.5 bg-slack-accent text-white text-sm rounded font-medium hover:bg-slack-accent/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          {sending && (
+            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          )}
+          {sending ? "送信中..." : "送信"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function ProjectOverview({
+  group,
+  onOpenSession,
+  isCreatingSession,
+  onCreateSession,
+  onCancelCreate,
+}: Props) {
   const recentSessions = group.clones
     .flatMap((c) => c.sessions.map((s) => ({ ...s, clone_name: c.clone_name })))
     .sort(
@@ -21,6 +111,14 @@ export function ProjectOverview({ group, onOpenSession }: Props) {
       <h2 className="text-2xl font-bold text-white mb-6">
         {group.display_name}
       </h2>
+
+      {/* New Session Form */}
+      {isCreatingSession && onCreateSession && onCancelCreate && (
+        <NewSessionForm
+          onSubmit={onCreateSession}
+          onCancel={onCancelCreate}
+        />
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">

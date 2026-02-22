@@ -45,6 +45,76 @@ def _clean_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
 
+async def create_new_session(
+    message: str,
+    project_path: str,
+    image_paths: list[str] | None = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> dict:
+    """claude -p で新規セッションを作成し、結果を返す（--resume なし）."""
+    claude_bin = _find_claude_binary()
+    if not claude_bin:
+        return {"success": False, "error": "claude binary not found"}
+
+    full_message = message
+    if image_paths:
+        paths_list = "\n".join(f"- {p}" for p in image_paths)
+        instruction = (
+            f"以下の画像ファイルが添付されています。"
+            f"まずReadツールで各画像ファイルを読み込んで内容を確認してから回答してください。\n\n"
+            f"{paths_list}"
+        )
+        full_message = f"{message}\n\n{instruction}" if message else instruction
+
+    cmd = [
+        claude_bin,
+        "-p", full_message,
+        "--dangerously-skip-permissions",
+        "--output-format", "json",
+    ]
+
+    logger.info("Creating new session in %s", project_path)
+
+    env = _clean_env()
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=project_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        return {"success": False, "error": f"Timeout after {timeout}s"}
+    except OSError as e:
+        return {"success": False, "error": str(e)}
+
+    if proc.returncode != 0:
+        err = stderr.decode(errors="replace").strip()
+        logger.error("claude exited %d: %s", proc.returncode, err)
+        return {"success": False, "error": err or f"Exit code {proc.returncode}"}
+
+    raw = stdout.decode(errors="replace").strip()
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"success": False, "error": "Invalid JSON from claude", "raw": raw[:500]}
+
+    return {
+        "success": True,
+        "result": data.get("result", ""),
+        "session_id": data.get("session_id", ""),
+        "cost_usd": data.get("total_cost_usd"),
+        "usage": data.get("usage"),
+    }
+
+
 async def send_message(
     session_id: str,
     message: str,
@@ -147,7 +217,7 @@ async def generate_title(user_messages: list[str]) -> str | None:
     instruction = (
         "stdinで渡されたテキストは、ユーザーがAIアシスタントに送ったメッセージの一覧です。"
         "このセッション全体の内容を要約した短いタイトルを1つだけ出力してください。"
-        " ルール: 15文字以内の簡潔なタイトルのみを出力。"
+        " ルール: 40文字以内の簡潔なタイトルのみを出力。"
         "説明、引用符、括弧は不要。"
         "「〜について」「〜の件」等の冗長な表現は避ける。"
         "具体的な技術名や操作内容を含める。"
@@ -195,6 +265,6 @@ async def generate_title(user_messages: list[str]) -> str | None:
     # 余計な引用符や改行を除去
     title = title.strip('"\'「」\n')
     # 長すぎる場合はトリム
-    if len(title) > 25:
-        title = title[:23] + ".."
+    if len(title) > 45:
+        title = title[:43] + ".."
     return title or None

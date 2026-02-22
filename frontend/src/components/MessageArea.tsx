@@ -289,7 +289,7 @@ export function MessageArea({
                 </button>
               </div>
             ) : (
-              <h3 className="text-white font-bold text-[15px] truncate">
+              <h3 className="text-white font-bold text-[15px]">
                 # {session.display_name}
               </h3>
             )}
