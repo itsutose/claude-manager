@@ -132,6 +132,15 @@ export async function hideSession(
   return res.json();
 }
 
+export async function unhideSession(
+  sessionId: string,
+): Promise<{ hidden: boolean }> {
+  const res = await fetch(`/api/sessions/${sessionId}/unhide`, {
+    method: "POST",
+  });
+  return res.json();
+}
+
 export async function fetchGroupAssets(
   groupId: string,
 ): Promise<ProjectAssets> {

@@ -97,6 +97,7 @@ class ProjectClone:
     clone_name: str
     project_path: str
     sessions: list[SessionEntry] = field(default_factory=list)
+    trash_sessions: list[SessionEntry] = field(default_factory=list)
 
     @property
     def session_count(self) -> int:
@@ -125,6 +126,9 @@ class ProjectClone:
             "current_branch": self.current_branch,
             "sessions": [s.to_dict() for s in sorted(
                 self.sessions, key=lambda s: s.modified, reverse=True
+            )],
+            "trash_sessions": [s.to_dict() for s in sorted(
+                self.trash_sessions, key=lambda s: s.modified, reverse=True
             )],
         }
 

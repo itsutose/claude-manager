@@ -5,7 +5,7 @@ import type {
   SessionEntry,
 } from "../types";
 import { statusColor } from "../helpers";
-import { renameSession, togglePin, hideSession } from "../api";
+import { renameSession, togglePin, hideSession, unhideSession } from "../api";
 
 // --- Context Menu ---
 
@@ -23,17 +23,21 @@ interface RenameState {
 function ContextMenu({
   menu,
   session,
+  isTrash,
   onClose,
   onRename,
   onTogglePin,
   onHide,
+  onUnhide,
 }: {
   menu: MenuState;
   session: SessionEntry | undefined;
+  isTrash: boolean;
   onClose: () => void;
   onRename: (sessionId: string, currentName: string) => void;
   onTogglePin: (sessionId: string) => void;
   onHide: (sessionId: string) => void;
+  onUnhide: (sessionId: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -48,6 +52,30 @@ function ContextMenu({
   }, [onClose]);
 
   if (!session) return null;
+
+  // trash内セッションは「復元」のみ表示
+  if (isTrash) {
+    return (
+      <div
+        ref={ref}
+        className="fixed z-50 bg-[#2b2d31] border border-slack-border/50 rounded-lg shadow-xl py-1 min-w-[160px]"
+        style={{ top: menu.y, left: menu.x }}
+      >
+        <button
+          onClick={() => {
+            onUnhide(menu.sessionId);
+            onClose();
+          }}
+          className="w-full text-left px-3 py-1.5 text-sm text-slack-text hover:bg-slack-hover flex items-center gap-2"
+        >
+          <svg className="w-3.5 h-3.5 text-slack-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+          </svg>
+          復元
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -214,6 +242,9 @@ function CloneSection({
   onRenameCancel: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [trashExpanded, setTrashExpanded] = useState(false);
+
+  const trashCount = clone.trash_sessions?.length ?? 0;
 
   return (
     <div className="mb-1">
@@ -268,6 +299,49 @@ function CloneSection({
               onRenameCancel={onRenameCancel}
             />
           ))}
+          {/* Trash section */}
+          {trashCount > 0 && (
+            <div className="mt-1">
+              <button
+                onClick={() => setTrashExpanded(!trashExpanded)}
+                className="flex items-center gap-1 px-2 py-0.5 text-slack-muted/50 text-[11px] cursor-pointer hover:text-slack-muted"
+              >
+                <svg
+                  className={`w-2.5 h-2.5 transition-transform ${trashExpanded ? "" : "-rotate-90"}`}
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                  />
+                </svg>
+                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>trash</span>
+                <span className="text-[10px]">{trashCount}</span>
+              </button>
+              {trashExpanded && (
+                <div className="ml-2 opacity-60">
+                  {clone.trash_sessions.map((s) => (
+                    <SessionItem
+                      key={s.session_id}
+                      session={s}
+                      selected={selectedSessionId === s.session_id}
+                      onClick={() => onOpenSession(s.session_id)}
+                      onMenuOpen={onMenuOpen}
+                      renaming={renamingSessionId === s.session_id}
+                      renameValue={renameValue}
+                      onRenameChange={onRenameChange}
+                      onRenameSubmit={onRenameSubmit}
+                      onRenameCancel={onRenameCancel}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -296,13 +370,15 @@ export function Sidebar({
   const [renameState, setRenameState] = useState<RenameState | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  // Find a session by ID from all clones
+  // Find a session by ID from all clones (including trash)
   const findSession = useCallback(
-    (sessionId: string): SessionEntry | undefined => {
+    (sessionId: string): { session: SessionEntry; isTrash: boolean } | undefined => {
       if (!groupDetail) return undefined;
       for (const clone of groupDetail.clones) {
         const s = clone.sessions.find((s) => s.session_id === sessionId);
-        if (s) return s;
+        if (s) return { session: s, isTrash: false };
+        const t = clone.trash_sessions?.find((s) => s.session_id === sessionId);
+        if (t) return { session: t, isTrash: true };
       }
       return undefined;
     },
@@ -356,6 +432,14 @@ export function Sidebar({
   const handleHide = useCallback(
     async (sessionId: string) => {
       await hideSession(sessionId);
+      onRefreshGroup?.();
+    },
+    [onRefreshGroup],
+  );
+
+  const handleUnhide = useCallback(
+    async (sessionId: string) => {
+      await unhideSession(sessionId);
       onRefreshGroup?.();
     },
     [onRefreshGroup],
@@ -453,16 +537,21 @@ export function Sidebar({
       </div>
 
       {/* Context Menu */}
-      {menu && (
-        <ContextMenu
-          menu={menu}
-          session={findSession(menu.sessionId)}
-          onClose={handleMenuClose}
-          onRename={handleStartRename}
-          onTogglePin={handleTogglePin}
-          onHide={handleHide}
-        />
-      )}
+      {menu && (() => {
+        const found = findSession(menu.sessionId);
+        return (
+          <ContextMenu
+            menu={menu}
+            session={found?.session}
+            isTrash={found?.isTrash ?? false}
+            onClose={handleMenuClose}
+            onRename={handleStartRename}
+            onTogglePin={handleTogglePin}
+            onHide={handleHide}
+            onUnhide={handleUnhide}
+          />
+        );
+      })()}
     </div>
   );
 }
