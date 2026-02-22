@@ -7,14 +7,17 @@ interface Props {
   group: ProjectGroupDetail;
   onOpenSession: (sessionId: string) => void;
   isCreatingSession?: boolean;
+  creatingCloneName?: string | null;
   onCreateSession?: (message: string, images?: string[]) => Promise<void>;
   onCancelCreate?: () => void;
 }
 
 function NewSessionForm({
+  cloneName,
   onSubmit,
   onCancel,
 }: {
+  cloneName?: string | null;
   onSubmit: (message: string, images?: string[]) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -91,7 +94,14 @@ function NewSessionForm({
   return (
     <div className="border border-slack-accent/50 rounded-lg p-4 mb-6 bg-[#2b2d31]">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-white font-bold text-sm">新規セッション</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-white font-bold text-sm">新規セッション</h3>
+          {cloneName && (
+            <span className="text-xs text-slack-muted bg-slack-hover px-2 py-0.5 rounded">
+              {cloneName}
+            </span>
+          )}
+        </div>
         <button
           onClick={onCancel}
           className="text-slack-muted hover:text-white text-xs"
@@ -167,6 +177,7 @@ export function ProjectOverview({
   group,
   onOpenSession,
   isCreatingSession,
+  creatingCloneName,
   onCreateSession,
   onCancelCreate,
 }: Props) {
@@ -187,6 +198,7 @@ export function ProjectOverview({
       {/* New Session Form */}
       {isCreatingSession && onCreateSession && onCancelCreate && (
         <NewSessionForm
+          cloneName={creatingCloneName}
           onSubmit={onCreateSession}
           onCancel={onCancelCreate}
         />
