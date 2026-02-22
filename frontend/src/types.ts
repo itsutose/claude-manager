@@ -90,3 +90,15 @@ export interface ProjectAssets {
   global_claude_md: string | null;
   global_rules: AssetFile[];
 }
+
+export interface SplitPane {
+  paneId: string;
+  sessionId: string;
+  session: SessionEntry | null;
+  messages: SessionMessage[];
+  loading: boolean;
+  sending: boolean;
+  sendError: string | null;
+  inputValue: string;
+  pastedImages: { data: string; preview: string }[];
+}
