@@ -18,6 +18,9 @@ def _find_session(groups, session_id: str):
             for s in c.sessions:
                 if s.session_id == session_id:
                     return s, c, g
+            for s in c.trash_sessions:
+                if s.session_id == session_id:
+                    return s, c, g
     return None, None, None
 
 
@@ -253,10 +256,13 @@ async def hide_session(session_id: str, request: Request):
     user_data = request.app.state.user_data
     user_data.hide_session(session_id)
 
-    # メモリ上のグループからセッションを除去
+    # メモリ上: sessions → trash_sessions へ移動
     for g in request.app.state.groups:
         for c in g.clones:
-            c.sessions = [s for s in c.sessions if s.session_id != session_id]
+            target = [s for s in c.sessions if s.session_id == session_id]
+            if target:
+                c.sessions = [s for s in c.sessions if s.session_id != session_id]
+                c.trash_sessions.extend(target)
 
     return {"session_id": session_id, "hidden": True}
 
@@ -266,6 +272,15 @@ async def unhide_session(session_id: str, request: Request):
     """非表示セッションを復元する."""
     user_data = request.app.state.user_data
     user_data.unhide_session(session_id)
+
+    # メモリ上: trash_sessions → sessions へ移動
+    for g in request.app.state.groups:
+        for c in g.clones:
+            target = [s for s in c.trash_sessions if s.session_id == session_id]
+            if target:
+                c.trash_sessions = [s for s in c.trash_sessions if s.session_id != session_id]
+                c.sessions.extend(target)
+
     return {"session_id": session_id, "hidden": False}
 
 

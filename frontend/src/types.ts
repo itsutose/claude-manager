@@ -25,6 +25,7 @@ export interface ProjectClone {
   latest_modified: string | null;
   current_branch: string | null;
   sessions: SessionEntry[];
+  trash_sessions: SessionEntry[];
 }
 
 export interface ProjectGroup {

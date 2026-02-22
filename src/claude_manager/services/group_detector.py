@@ -131,10 +131,8 @@ def detect_groups_from_config(
     if not groups_def:
         return []
 
-    # 非表示セッションをフィルタリング
+    # 非表示セッションIDを読み込み（フィルタせずtrash_sessionsとして保持）
     hidden_ids = _load_hidden_sessions(config)
-    if hidden_ids:
-        sessions = [s for s in sessions if s.session_id not in hidden_ids]
 
     # clone_id → project_path のマッピングを構築
     clone_ids_set: set[str] = set()
@@ -195,12 +193,21 @@ def detect_groups_from_config(
                 last_read = read_states.get(s.session_id)
                 s.has_unread = bool(last_read and s.modified.isoformat() > last_read)
 
+            # 通常セッションとtrashセッションを振り分け
+            visible_sessions = [s for s in clone_sessions if s.session_id not in hidden_ids]
+            trash_sessions = [s for s in clone_sessions if s.session_id in hidden_ids]
+
+            # セッションもtrashも無い場合はスキップ
+            if not visible_sessions and not trash_sessions:
+                continue
+
             clone_name = Path(path).name
             clones.append(ProjectClone(
                 clone_id=clone_id,
                 clone_name=clone_name,
                 project_path=path,
-                sessions=clone_sessions,
+                sessions=visible_sessions,
+                trash_sessions=trash_sessions,
             ))
 
         if not clones:
