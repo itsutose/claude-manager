@@ -17,6 +17,8 @@ interface Props {
   onSessionUpdate: (session: SessionEntry) => void;
   onRefreshGroup: () => void;
   onAppendMessages: (...msgs: SessionMessage[]) => void;
+  initialInputValue?: string;
+  onInputValueChange?: (value: string) => void;
 }
 
 function dateDiffersFrom(
@@ -516,6 +518,16 @@ export function MessageArea({
                 const t = e.currentTarget;
                 t.style.height = "auto";
                 t.style.height = Math.min(t.scrollHeight, 120) + "px";
+                if (areaRef.current) {
+                  const a = areaRef.current;
+                  // 底付近にいる場合のみスクロールを追従させる
+                  const atBottom = a.scrollHeight - a.scrollTop - a.clientHeight < 80;
+                  if (atBottom) {
+                    requestAnimationFrame(() => {
+                      a.scrollTop = a.scrollHeight;
+                    });
+                  }
+                }
               }}
             />
           </div>
