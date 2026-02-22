@@ -133,6 +133,11 @@ export default function App() {
           group={groupDetail}
           onOpenSession={openSession}
           isCreatingSession={isCreatingSession}
+          creatingCloneName={
+            creatingCloneId
+              ? groupDetail.clones.find((c) => c.clone_id === creatingCloneId)?.clone_name ?? null
+              : null
+          }
           onCreateSession={handleCreateSession}
           onCancelCreate={handleCancelCreate}
         />
