@@ -19,6 +19,7 @@ interface Props {
   onAppendMessages: (...msgs: SessionMessage[]) => void;
   initialInputValue?: string;
   onInputValueChange?: (value: string) => void;
+  onSendingChange?: (sending: boolean) => void;
 }
 
 function dateDiffersFrom(
@@ -78,6 +79,7 @@ export function MessageArea({
   onAppendMessages,
   initialInputValue = "",
   onInputValueChange,
+  onSendingChange,
 }: Props) {
   const areaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -169,6 +171,7 @@ export function MessageArea({
     if ((!msg && !hasImages) || sending) return;
 
     setSending(true);
+    onSendingChange?.(true);
     setSendError(null);
     setInputValue("");
     const imagesToSend = [...pastedImages];
@@ -212,6 +215,7 @@ export function MessageArea({
       setSendError("通信エラーが発生しました");
     } finally {
       setSending(false);
+      onSendingChange?.(false);
       inputRef.current?.focus();
     }
   };

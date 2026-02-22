@@ -68,6 +68,7 @@ export default function App() {
     clearSession,
     appendMessages,
     refreshGroupDetail,
+    setSending,
   } = useGroups();
 
   const splitView = useSplitView();
@@ -308,6 +309,7 @@ export default function App() {
                 onSessionUpdate={setSelectedSession}
                 onRefreshGroup={handleRefreshGroup}
                 onAppendMessages={appendMessages}
+                onSendingChange={setSending}
                 initialInputValue={
                   draftMap.current.get(selectedSession.session_id) ?? ""
                 }
