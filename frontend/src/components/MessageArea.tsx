@@ -257,7 +257,7 @@ export function MessageArea({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-w-0">
+    <div className="flex-1 flex flex-col min-w-0 min-h-0">
       {/* Header */}
       <div className="border-b border-slack-border/50 px-6 py-3 shrink-0">
         <div className="flex items-center justify-between">

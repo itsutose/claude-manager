@@ -6,7 +6,8 @@ import {
   useDroppable,
   useSensors,
   useSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
@@ -81,7 +82,10 @@ export default function App() {
 
   // DnD sensors: 8px distance to distinguish click from drag
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(TouchSensor, {
       activationConstraint: { distance: 8 },
     }),
   );

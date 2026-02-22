@@ -182,19 +182,23 @@ function SessionItem({
   }
 
   return (
-    <div className="group relative" ref={setNodeRef} {...attributes}>
+    <div
+      className={`group relative ${isDragging ? "opacity-40" : ""}`}
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+    >
       <button
         onClick={onClick}
         onContextMenu={(e) => {
           e.preventDefault();
           onMenuOpen(session.session_id, e);
         }}
-        {...listeners}
         className={`w-full flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-sm text-left ${
           selected
             ? "bg-slack-active text-white"
             : "hover:bg-slack-hover"
-        } ${isDragging ? "opacity-40" : ""}`}
+        }`}
       >
         <span
           className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor(session.status)}`}
