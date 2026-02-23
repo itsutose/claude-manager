@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ProjectGroup,
   ProjectGroupDetail,
@@ -26,6 +26,11 @@ export function useGroups() {
   );
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const sendingRef = useRef(false);
+
+  const setSending = useCallback((v: boolean) => {
+    sendingRef.current = v;
+  }, []);
 
   const loadGroups = useCallback(async () => {
     const data = await fetchGroups();
@@ -83,8 +88,8 @@ export function useGroups() {
       const detail = await fetchGroupDetail(currentGroupId);
       setGroupDetail(detail);
     }
-    // 表示中セッションのメッセージも再取得
-    if (selectedSessionId) {
+    // 表示中セッションのメッセージも再取得（送信中はスキップ）
+    if (selectedSessionId && !sendingRef.current) {
       const [session, msgData] = await Promise.all([
         fetchSession(selectedSessionId),
         fetchMessages(selectedSessionId),
@@ -132,5 +137,6 @@ export function useGroups() {
     clearSession,
     appendMessages,
     refreshGroupDetail,
+    setSending,
   };
 }

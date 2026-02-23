@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useDraggable } from "@dnd-kit/core";
 import type {
   ProjectGroupDetail,
   ProjectClone,
@@ -148,6 +149,11 @@ function SessionItem({
   onRenameCancel: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `session-${session.session_id}`,
+    data: { session },
+    disabled: renaming,
+  });
 
   useEffect(() => {
     if (renaming && inputRef.current) {
@@ -176,7 +182,12 @@ function SessionItem({
   }
 
   return (
-    <div className="group relative">
+    <div
+      className={`group relative ${isDragging ? "opacity-40" : ""}`}
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+    >
       <button
         onClick={onClick}
         onContextMenu={(e) => {
